@@ -133,7 +133,7 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 func isUniqueViolation(err error) bool {
 	// PostgreSQL error code 23505 is unique_violation
 	// The lib/pq driver returns errors with this in the message
-	return err != nil && (errors.Is(err, sql.ErrNoRows) == false) &&
+	return err != nil && (!errors.Is(err, sql.ErrNoRows)) &&
 		(fmt.Sprintf("%v", err) == "pq: duplicate key value violates unique constraint \"events_aggregate_type_aggregate_id_aggregate_version_key\"" ||
 			containsString(fmt.Sprintf("%v", err), "duplicate key") ||
 			containsString(fmt.Sprintf("%v", err), "unique constraint"))

@@ -42,6 +42,10 @@ func NewStore(config StoreConfig) *Store {
 }
 
 // Append implements store.EventStore.
+// It automatically assigns aggregate versions starting from the current max version + 1.
+// The database constraint on (aggregate_type, aggregate_id, aggregate_version) enforces
+// optimistic concurrency - if another transaction commits between our version check and insert,
+// the insert will fail with a unique constraint violation.
 func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]int64, error) {
 	if len(events) == 0 {
 		return nil, store.ErrNoEvents
@@ -57,13 +61,9 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 		if e.AggregateID != firstEvent.AggregateID {
 			return nil, fmt.Errorf("event %d: aggregate ID mismatch", i)
 		}
-		expectedVersion := firstEvent.AggregateVersion + int64(i)
-		if e.AggregateVersion != expectedVersion {
-			return nil, fmt.Errorf("event %d: expected version %d, got %d", i, expectedVersion, e.AggregateVersion)
-		}
 	}
 
-	// Check current version for optimistic concurrency
+	// Fetch current max version for this aggregate
 	var currentVersion sql.NullInt64
 	query := fmt.Sprintf(`
 		SELECT MAX(aggregate_version) 
@@ -76,16 +76,15 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 		return nil, fmt.Errorf("failed to check current version: %w", err)
 	}
 
-	// Verify optimistic concurrency
-	expectedCurrentVersion := firstEvent.AggregateVersion - 1
-	if currentVersion.Valid && currentVersion.Int64 != expectedCurrentVersion {
-		return nil, store.ErrOptimisticConcurrency
-	}
-	if !currentVersion.Valid && expectedCurrentVersion != 0 {
-		return nil, store.ErrOptimisticConcurrency
+	// Determine starting version for new events
+	var nextVersion int64
+	if currentVersion.Valid {
+		nextVersion = currentVersion.Int64 + 1
+	} else {
+		nextVersion = 1 // First event for this aggregate
 	}
 
-	// Insert events and collect global positions
+	// Insert events with auto-assigned versions and collect global positions
 	globalPositions := make([]int64, len(events))
 	insertQuery := fmt.Sprintf(`
 		INSERT INTO %s (
@@ -99,11 +98,13 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 
 	for i := range events {
 		event := &events[i]
+		aggregateVersion := nextVersion + int64(i)
+
 		var globalPos int64
 		err := tx.QueryRowContext(ctx, insertQuery,
 			event.AggregateType,
 			event.AggregateID,
-			event.AggregateVersion,
+			aggregateVersion,
 			event.EventID,
 			event.EventType,
 			event.EventVersion,
@@ -116,12 +117,41 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 		).Scan(&globalPos)
 
 		if err != nil {
+			// Check if this is a unique constraint violation (optimistic concurrency failure)
+			if isUniqueViolation(err) {
+				return nil, store.ErrOptimisticConcurrency
+			}
 			return nil, fmt.Errorf("failed to insert event %d: %w", i, err)
 		}
 		globalPositions[i] = globalPos
 	}
 
 	return globalPositions, nil
+}
+
+// isUniqueViolation checks if an error is a PostgreSQL unique constraint violation.
+func isUniqueViolation(err error) bool {
+	// PostgreSQL error code 23505 is unique_violation
+	// The lib/pq driver returns errors with this in the message
+	return err != nil && (errors.Is(err, sql.ErrNoRows) == false) &&
+		(fmt.Sprintf("%v", err) == "pq: duplicate key value violates unique constraint \"events_aggregate_type_aggregate_id_aggregate_version_key\"" ||
+			containsString(fmt.Sprintf("%v", err), "duplicate key") ||
+			containsString(fmt.Sprintf("%v", err), "unique constraint"))
+}
+
+func containsString(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
+		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
+			findSubstring(s, substr)))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 // ReadEvents implements store.EventReader.

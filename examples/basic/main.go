@@ -76,15 +76,14 @@ func main() {
 
 	events := []es.Event{
 		{
-			AggregateType:    "User",
-			AggregateID:      aggregateID,
-			AggregateVersion: 1,
-			EventID:          uuid.New(),
-			EventType:        "UserCreated",
-			EventVersion:     1,
-			Payload:          payload1,
-			Metadata:         []byte(`{}`),
-			CreatedAt:        time.Now(),
+			AggregateType: "User",
+			AggregateID:   aggregateID,
+			EventID:       uuid.New(),
+			EventType:     "UserCreated",
+			EventVersion:  1,
+			Payload:       payload1,
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
 		},
 	}
 

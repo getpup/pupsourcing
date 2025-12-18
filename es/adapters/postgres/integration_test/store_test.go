@@ -121,26 +121,24 @@ func TestAppendEvents(t *testing.T) {
 	aggregateID := uuid.New()
 	events := []es.Event{
 		{
-			AggregateType:    "TestAggregate",
-			AggregateID:      aggregateID,
-			AggregateVersion: 1,
-			EventID:          uuid.New(),
-			EventType:        "TestEventCreated",
-			EventVersion:     1,
-			Payload:          []byte(`{"test":"data"}`),
-			Metadata:         []byte(`{}`),
-			CreatedAt:        time.Now(),
+			AggregateType: "TestAggregate",
+			AggregateID:   aggregateID,
+			EventID:       uuid.New(),
+			EventType:     "TestEventCreated",
+			EventVersion:  1,
+			Payload:       []byte(`{"test":"data"}`),
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType:    "TestAggregate",
-			AggregateID:      aggregateID,
-			AggregateVersion: 2,
-			EventID:          uuid.New(),
-			EventType:        "TestEventUpdated",
-			EventVersion:     1,
-			Payload:          []byte(`{"test":"updated"}`),
-			Metadata:         []byte(`{}`),
-			CreatedAt:        time.Now(),
+			AggregateType: "TestAggregate",
+			AggregateID:   aggregateID,
+			EventID:       uuid.New(),
+			EventType:     "TestEventUpdated",
+			EventVersion:  1,
+			Payload:       []byte(`{"test":"updated"}`),
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
 		},
 	}
 
@@ -184,15 +182,14 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 
 	// First append succeeds
 	event1 := es.Event{
-		AggregateType:    "TestAggregate",
-		AggregateID:      aggregateID,
-		AggregateVersion: 1,
-		EventID:          uuid.New(),
-		EventType:        "TestEventCreated",
-		EventVersion:     1,
-		Payload:          []byte(`{}`),
-		Metadata:         []byte(`{}`),
-		CreatedAt:        time.Now(),
+		AggregateType: "TestAggregate",
+		AggregateID:   aggregateID,
+		EventID:       uuid.New(),
+		EventType:     "TestEventCreated",
+		EventVersion:  1,
+		Payload:       []byte(`{}`),
+		Metadata:      []byte(`{}`),
+		CreatedAt:     time.Now(),
 	}
 
 	tx1, _ := db.BeginTx(ctx, nil)
@@ -204,17 +201,17 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 	}
 	tx1.Commit()
 
-	// Second append with same version should fail
+	// Second concurrent append should fail due to optimistic concurrency
+	// Both transactions try to append to the same aggregate simultaneously
 	event2 := es.Event{
-		AggregateType:    "TestAggregate",
-		AggregateID:      aggregateID,
-		AggregateVersion: 1, // Same version - should conflict
-		EventID:          uuid.New(),
-		EventType:        "TestEventUpdated",
-		EventVersion:     1,
-		Payload:          []byte(`{}`),
-		Metadata:         []byte(`{}`),
-		CreatedAt:        time.Now(),
+		AggregateType: "TestAggregate",
+		AggregateID:   aggregateID,
+		EventID:       uuid.New(),
+		EventType:     "TestEventUpdated",
+		EventVersion:  1,
+		Payload:       []byte(`{}`),
+		Metadata:      []byte(`{}`),
+		CreatedAt:     time.Now(),
 	}
 
 	tx2, _ := db.BeginTx(ctx, nil)
@@ -241,26 +238,24 @@ func TestReadEvents(t *testing.T) {
 
 	events := []es.Event{
 		{
-			AggregateType:    "TestAggregate",
-			AggregateID:      aggregateID1,
-			AggregateVersion: 1,
-			EventID:          uuid.New(),
-			EventType:        "Event1",
-			EventVersion:     1,
-			Payload:          []byte(`{}`),
-			Metadata:         []byte(`{}`),
-			CreatedAt:        time.Now(),
+			AggregateType: "TestAggregate",
+			AggregateID:   aggregateID1,
+			EventID:       uuid.New(),
+			EventType:     "Event1",
+			EventVersion:  1,
+			Payload:       []byte(`{}`),
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType:    "TestAggregate",
-			AggregateID:      aggregateID2,
-			AggregateVersion: 1,
-			EventID:          uuid.New(),
-			EventType:        "Event2",
-			EventVersion:     1,
-			Payload:          []byte(`{}`),
-			Metadata:         []byte(`{}`),
-			CreatedAt:        time.Now(),
+			AggregateType: "TestAggregate",
+			AggregateID:   aggregateID2,
+			EventID:       uuid.New(),
+			EventType:     "Event2",
+			EventVersion:  1,
+			Payload:       []byte(`{}`),
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
 		},
 	}
 
@@ -306,15 +301,14 @@ func TestReadEvents_Pagination(t *testing.T) {
 	// Append multiple events
 	for i := 0; i < 5; i++ {
 		event := es.Event{
-			AggregateType:    "TestAggregate",
-			AggregateID:      uuid.New(),
-			AggregateVersion: 1,
-			EventID:          uuid.New(),
-			EventType:        fmt.Sprintf("Event%d", i),
-			EventVersion:     1,
-			Payload:          []byte(`{}`),
-			Metadata:         []byte(`{}`),
-			CreatedAt:        time.Now(),
+			AggregateType: "TestAggregate",
+			AggregateID:   uuid.New(),
+			EventID:       uuid.New(),
+			EventType:     fmt.Sprintf("Event%d", i),
+			EventVersion:  1,
+			Payload:       []byte(`{}`),
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
 		}
 
 		tx, _ := db.BeginTx(ctx, nil)

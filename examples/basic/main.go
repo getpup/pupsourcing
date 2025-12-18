@@ -9,11 +9,12 @@ import (
 	"log"
 	"time"
 
+	"github.com/google/uuid"
+	_ "github.com/lib/pq"
+
 	"github.com/getpup/pupsourcing/es"
 	"github.com/getpup/pupsourcing/es/adapters/postgres"
 	"github.com/getpup/pupsourcing/es/projection"
-	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 )
 
 //go:generate go run ../../cmd/migrate-gen -output ../../migrations -filename init.sql
@@ -69,7 +70,8 @@ func main() {
 		Name:  "Alice Smith",
 	})
 	if err != nil {
-		log.Fatalf("Failed to marshal event: %v", err)
+		log.Printf("Failed to marshal event: %v", err)
+		return
 	}
 
 	events := []es.Event{
@@ -88,7 +90,8 @@ func main() {
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		log.Fatalf("Failed to begin transaction: %v", err)
+		log.Printf("Failed to begin transaction: %v", err)
+		return
 	}
 	defer func() {
 		//nolint:errcheck // Rollback error ignored: expected to fail if commit succeeds
@@ -97,11 +100,13 @@ func main() {
 
 	positions, err := store.Append(ctx, tx, events)
 	if err != nil {
-		log.Fatalf("Failed to append events: %v", err)
+		log.Printf("Failed to append events: %v", err)
+		return
 	}
 
 	if err := tx.Commit(); err != nil {
-		log.Fatalf("Failed to commit: %v", err)
+		log.Printf("Failed to commit: %v", err)
+		return
 	}
 
 	fmt.Printf("Events appended at positions: %v\n", positions)

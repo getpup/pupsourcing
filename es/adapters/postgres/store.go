@@ -21,6 +21,9 @@ type StoreConfig struct {
 
 	// CheckpointsTable is the name of the projection checkpoints table
 	CheckpointsTable string
+
+	// SnapshotsTable is the name of the snapshots table (optional)
+	SnapshotsTable string
 }
 
 // DefaultStoreConfig returns the default configuration.
@@ -28,6 +31,7 @@ func DefaultStoreConfig() StoreConfig {
 	return StoreConfig{
 		EventsTable:      "events",
 		CheckpointsTable: "projection_checkpoints",
+		SnapshotsTable:   "snapshots",
 	}
 }
 

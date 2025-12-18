@@ -49,7 +49,8 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 
 	// Validate all events belong to same aggregate
 	firstEvent := events[0]
-	for i, e := range events {
+	for i := range events {
+		e := &events[i]
 		if e.AggregateType != firstEvent.AggregateType {
 			return nil, fmt.Errorf("event %d: aggregate type mismatch", i)
 		}
@@ -96,7 +97,8 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 		RETURNING global_position
 	`, s.config.EventsTable)
 
-	for i, event := range events {
+	for i := range events {
+		event := &events[i]
 		var globalPos int64
 		err := tx.QueryRowContext(ctx, insertQuery,
 			event.AggregateType,

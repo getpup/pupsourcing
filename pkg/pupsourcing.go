@@ -11,18 +11,18 @@
 //
 // Quick Start:
 //
-// 1. Generate migrations:
-//	go run github.com/getpup/pupsourcing/cmd/migrate-gen -output migrations
+//  1. Generate migrations:
+//     go run github.com/getpup/pupsourcing/cmd/migrate-gen -output migrations
 //
-// 2. Create store and append events:
-//	store := postgres.NewStore(postgres.DefaultStoreConfig())
-//	tx, _ := db.BeginTx(ctx, nil)
-//	positions, err := store.Append(ctx, tx, events)
-//	tx.Commit()
+//  2. Create store and append events:
+//     store := postgres.NewStore(postgres.DefaultStoreConfig())
+//     tx, _ := db.BeginTx(ctx, nil)
+//     positions, err := store.Append(ctx, tx, events)
+//     tx.Commit()
 //
-// 3. Process events:
-//	processor := projection.NewProcessor(db, store, projection.DefaultProcessorConfig())
-//	processor.Run(ctx, myProjection)
+//  3. Process events:
+//     processor := projection.NewProcessor(db, store, projection.DefaultProcessorConfig())
+//     processor.Run(ctx, myProjection)
 //
 // See the examples directory for complete working examples.
 package pupsourcing

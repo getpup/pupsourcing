@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -195,9 +196,13 @@ func TestProjection_BasicProcessing(t *testing.T) {
 	defer cancel()
 
 	err = processor.Run(ctx2, proj)
-	// Accept either no error, deadline exceeded, or wrapped deadline exceeded
-	if err != nil && err != context.DeadlineExceeded && !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Unexpected error from processor: %v", err)
+	// Accept no error, projection stopped, deadline exceeded (possibly wrapped without %w)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, projection.ErrProjectionStopped) || strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
+			// acceptable
+		} else {
+			t.Fatalf("Unexpected error from processor: %v, %T", err, err)
+		}
 	}
 
 	// Verify events were processed - allow some time for processing

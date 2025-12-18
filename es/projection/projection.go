@@ -95,9 +95,9 @@ func DefaultProcessorConfig() ProcessorConfig {
 
 // Processor processes events for projections.
 type Processor struct {
-	config      ProcessorConfig
 	eventReader store.EventReader
 	db          *sql.DB
+	config      ProcessorConfig
 }
 
 // NewProcessor creates a new projection processor.
@@ -138,7 +138,9 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		_ = tx.Rollback()
+		// Ignore rollback error as it's expected to fail if commit succeeds
+		//nolint:errcheck
+		tx.Rollback()
 	}()
 
 	// Get current checkpoint

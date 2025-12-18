@@ -10,19 +10,6 @@ import (
 // Event represents an immutable domain event.
 // Events are value objects without identity until persisted.
 type Event struct {
-	// Payload contains the event data
-	// Store as BYTEA for flexibility - allows any serialization format
-	Payload []byte
-
-	// Metadata contains additional event metadata as JSON
-	Metadata []byte
-
-	// AggregateType identifies the type of aggregate this event belongs to
-	AggregateType string
-
-	// EventType identifies the type of event
-	EventType string
-
 	// CreatedAt is when the event was created
 	CreatedAt time.Time
 
@@ -48,6 +35,19 @@ type Event struct {
 	// GlobalPosition is assigned by the store upon persistence
 	// This field is read-only and set after successful append
 	GlobalPosition int64
+
+	// Payload contains the event data
+	// Store as BYTEA for flexibility - allows any serialization format
+	Payload []byte
+
+	// Metadata contains additional event metadata as JSON
+	Metadata []byte
+
+	// AggregateType identifies the type of aggregate this event belongs to
+	AggregateType string
+
+	// EventType identifies the type of event
+	EventType string
 
 	// EventVersion is the schema version of this event type
 	EventVersion int

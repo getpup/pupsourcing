@@ -3,7 +3,7 @@ package pupsourcing_test
 import (
 	"testing"
 
-	"github.com/getpup/pupsourcing/pkg"
+	pupsourcing "github.com/getpup/pupsourcing/pkg"
 )
 
 func TestVersion(t *testing.T) {

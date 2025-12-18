@@ -138,8 +138,7 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		// Ignore rollback error as it's expected to fail if commit succeeds
-		//nolint:errcheck
+		//nolint:errcheck Ignore rollback error as it's expected to fail if commit succeeds
 		tx.Rollback()
 	}()
 

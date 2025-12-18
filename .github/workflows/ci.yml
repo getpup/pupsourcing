@@ -7,8 +7,8 @@ on:
     branches: [ master ]
 
 jobs:
-  test:
-    name: Test
+  unit-test:
+    name: Unit Tests
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,7 +31,7 @@ jobs:
     - name: Go mod verify
       run: go mod verify
 
-    - name: Run tests
+    - name: Run unit tests
       run: go test -v -race -coverprofile=coverage.out ./...
 
     # Codecov upload - uncomment when ready to enable
@@ -42,6 +42,48 @@ jobs:
     #     files: ./coverage.out
     #     flags: unittests
     #     fail_ci_if_error: false
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pupsourcing_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+
+    - name: Go mod download
+      run: go mod download
+
+    - name: Run integration tests
+      env:
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: postgres
+        POSTGRES_DB: pupsourcing_test
+      run: go test -v -tags=integration ./es/adapters/postgres/integration_test/... ./es/projection/integration_test/...
 
   lint:
     name: Lint

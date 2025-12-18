@@ -1,0 +1,335 @@
+// Package integration_test contains integration tests for projections.
+// These tests require a running PostgreSQL instance.
+//
+// Run with: go test -tags=integration ./es/projection/integration_test/...
+//
+//go:build integration
+
+package integration_test
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"os"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/getpup/pupsourcing/es"
+	"github.com/getpup/pupsourcing/es/adapters/postgres"
+	"github.com/getpup/pupsourcing/es/migrations"
+	"github.com/getpup/pupsourcing/es/projection"
+	"github.com/google/uuid"
+	_ "github.com/lib/pq"
+)
+
+func getTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+
+	host := os.Getenv("POSTGRES_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+
+	port := os.Getenv("POSTGRES_PORT")
+	if port == "" {
+		port = "5432"
+	}
+
+	user := os.Getenv("POSTGRES_USER")
+	if user == "" {
+		user = "postgres"
+	}
+
+	password := os.Getenv("POSTGRES_PASSWORD")
+	if password == "" {
+		password = "postgres"
+	}
+
+	dbname := os.Getenv("POSTGRES_DB")
+	if dbname == "" {
+		dbname = "pupsourcing_test"
+	}
+
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		host, port, user, password, dbname)
+
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		t.Fatalf("Failed to connect to database: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		t.Fatalf("Failed to ping database: %v", err)
+	}
+
+	return db
+}
+
+func setupTestTables(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	_, err := db.Exec(`
+		DROP TABLE IF EXISTS events CASCADE;
+		DROP TABLE IF EXISTS projection_checkpoints CASCADE;
+	`)
+	if err != nil {
+		t.Fatalf("Failed to drop tables: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	config := migrations.Config{
+		OutputFolder:     tmpDir,
+		OutputFilename:   "test.sql",
+		EventsTable:      "events",
+		CheckpointsTable: "projection_checkpoints",
+	}
+
+	if err := migrations.GeneratePostgres(config); err != nil {
+		t.Fatalf("Failed to generate migration: %v", err)
+	}
+
+	migrationSQL, err := os.ReadFile(fmt.Sprintf("%s/%s", tmpDir, config.OutputFilename))
+	if err != nil {
+		t.Fatalf("Failed to read migration: %v", err)
+	}
+
+	_, err = db.Exec(string(migrationSQL))
+	if err != nil {
+		t.Fatalf("Failed to execute migration: %v", err)
+	}
+}
+
+// testProjection is a simple projection for testing
+type testProjection struct {
+	name   string
+	events []es.PersistedEvent
+	mu     sync.Mutex
+	errors []error
+}
+
+func newTestProjection(name string) *testProjection {
+	return &testProjection{
+		name:   name,
+		events: make([]es.PersistedEvent, 0),
+		errors: make([]error, 0),
+	}
+}
+
+func (p *testProjection) Name() string {
+	return p.name
+}
+
+func (p *testProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.events = append(p.events, event)
+	return nil
+}
+
+func (p *testProjection) EventCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.events)
+}
+
+func (p *testProjection) GetEvents() []es.PersistedEvent {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]es.PersistedEvent{}, p.events...)
+}
+
+func TestProjection_BasicProcessing(t *testing.T) {
+	db := getTestDB(t)
+	defer db.Close()
+
+	setupTestTables(t, db)
+
+	ctx := context.Background()
+	store := postgres.NewStore(postgres.DefaultStoreConfig())
+
+	// Append some test events
+	aggregateID := uuid.New()
+	events := []es.Event{
+		{
+			AggregateType:    "TestAggregate",
+			AggregateID:      aggregateID,
+			AggregateVersion: 1,
+			EventID:          uuid.New(),
+			EventType:        "EventCreated",
+			EventVersion:     1,
+			Payload:          []byte(`{"id":1}`),
+			Metadata:         []byte(`{}`),
+			CreatedAt:        time.Now(),
+		},
+		{
+			AggregateType:    "TestAggregate",
+			AggregateID:      aggregateID,
+			AggregateVersion: 2,
+			EventID:          uuid.New(),
+			EventType:        "EventUpdated",
+			EventVersion:     1,
+			Payload:          []byte(`{"id":2}`),
+			Metadata:         []byte(`{}`),
+			CreatedAt:        time.Now(),
+		},
+	}
+
+	tx, _ := db.BeginTx(ctx, nil)
+	_, err := store.Append(ctx, tx, events)
+	if err != nil {
+		t.Fatalf("Failed to append events: %v", err)
+	}
+	tx.Commit()
+
+	// Run projection
+	proj := newTestProjection("test_projection")
+	processor := projection.NewProcessor(db, store, projection.DefaultProcessorConfig())
+
+	// Run for a short time
+	ctx2, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+
+	err = processor.Run(ctx2, proj)
+	if err != nil && err != context.DeadlineExceeded {
+		t.Fatalf("Unexpected error from processor: %v", err)
+	}
+
+	// Verify events were processed
+	if proj.EventCount() != 2 {
+		t.Errorf("Expected 2 events processed, got %d", proj.EventCount())
+	}
+}
+
+func TestProjection_Checkpoint(t *testing.T) {
+	db := getTestDB(t)
+	defer db.Close()
+
+	setupTestTables(t, db)
+
+	ctx := context.Background()
+	store := postgres.NewStore(postgres.DefaultStoreConfig())
+
+	// Append events
+	aggregateID := uuid.New()
+	for i := 1; i <= 5; i++ {
+		event := es.Event{
+			AggregateType:    "TestAggregate",
+			AggregateID:      aggregateID,
+			AggregateVersion: int64(i),
+			EventID:          uuid.New(),
+			EventType:        fmt.Sprintf("Event%d", i),
+			EventVersion:     1,
+			Payload:          []byte(fmt.Sprintf(`{"num":%d}`, i)),
+			Metadata:         []byte(`{}`),
+			CreatedAt:        time.Now(),
+		}
+
+		tx, _ := db.BeginTx(ctx, nil)
+		_, err := store.Append(ctx, tx, []es.Event{event})
+		if err != nil {
+			t.Fatalf("Failed to append event: %v", err)
+		}
+		tx.Commit()
+	}
+
+	// First run processes some events
+	proj1 := newTestProjection("checkpoint_test")
+	config := projection.DefaultProcessorConfig()
+	config.BatchSize = 2
+	processor1 := projection.NewProcessor(db, store, config)
+
+	ctx1, cancel1 := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel1()
+
+	processor1.Run(ctx1, proj1)
+
+	firstRunCount := proj1.EventCount()
+	if firstRunCount == 0 {
+		t.Fatal("First run processed no events")
+	}
+
+	// Second run should resume from checkpoint
+	proj2 := newTestProjection("checkpoint_test")
+	processor2 := projection.NewProcessor(db, store, config)
+
+	ctx2, cancel2 := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel2()
+
+	processor2.Run(ctx2, proj2)
+
+	// Total events should equal sum of both runs
+	totalProcessed := firstRunCount + proj2.EventCount()
+	if totalProcessed < 5 {
+		t.Errorf("Expected at least 5 total events processed, got %d", totalProcessed)
+	}
+
+	// Second run should not reprocess first run's events
+	if proj2.EventCount() > 0 {
+		firstEvent := proj2.GetEvents()[0]
+		lastEventFirstRun := proj1.GetEvents()[len(proj1.GetEvents())-1]
+		if firstEvent.GlobalPosition <= lastEventFirstRun.GlobalPosition {
+			t.Error("Second run reprocessed events from first run")
+		}
+	}
+}
+
+func TestProjection_ErrorHandling(t *testing.T) {
+	db := getTestDB(t)
+	defer db.Close()
+
+	setupTestTables(t, db)
+
+	ctx := context.Background()
+	store := postgres.NewStore(postgres.DefaultStoreConfig())
+
+	// Append events
+	aggregateID := uuid.New()
+	event := es.Event{
+		AggregateType:    "TestAggregate",
+		AggregateID:      aggregateID,
+		AggregateVersion: 1,
+		EventID:          uuid.New(),
+		EventType:        "ErrorEvent",
+		EventVersion:     1,
+		Payload:          []byte(`{}`),
+		Metadata:         []byte(`{}`),
+		CreatedAt:        time.Now(),
+	}
+
+	tx, _ := db.BeginTx(ctx, nil)
+	store.Append(ctx, tx, []es.Event{event})
+	tx.Commit()
+
+	// Create projection that returns error
+	errorProj := &errorProjection{name: "error_test"}
+	processor := projection.NewProcessor(db, store, projection.DefaultProcessorConfig())
+
+	ctx2, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+
+	err := processor.Run(ctx2, errorProj)
+	if err == nil {
+		t.Error("Expected error from projection processor")
+	}
+	if err != nil && err != projection.ErrProjectionStopped && err != context.DeadlineExceeded {
+		// Should be wrapped ErrProjectionStopped
+		t.Logf("Got error: %v", err)
+	}
+}
+
+type errorProjection struct {
+	name string
+}
+
+func (p *errorProjection) Name() string {
+	return p.name
+}
+
+func (p *errorProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+	return fmt.Errorf("intentional error")
+}

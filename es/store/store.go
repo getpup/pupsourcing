@@ -22,11 +22,14 @@ type EventStore interface {
 	// Events must all belong to the same aggregate instance.
 	// Returns the assigned global positions or an error.
 	//
-	// Optimistic concurrency is enforced via AggregateVersion:
-	// - The first event's version must match the current aggregate version + 1
-	// - Subsequent events must have sequential versions
+	// The store automatically assigns AggregateVersion to each event:
+	// - Fetches the current MAX(aggregate_version) for the aggregate
+	// - Assigns consecutive versions starting from (max + 1)
+	// - The database unique constraint on (aggregate_type, aggregate_id, aggregate_version)
+	//   enforces optimistic concurrency
 	//
-	// Returns ErrOptimisticConcurrency if version check fails.
+	// Returns ErrOptimisticConcurrency if another transaction commits conflicting events
+	// between the version check and insert (detected via unique constraint violation).
 	// Returns ErrNoEvents if events slice is empty.
 	Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]int64, error)
 }

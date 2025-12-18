@@ -158,26 +158,24 @@ func TestProjection_BasicProcessing(t *testing.T) {
 	aggregateID := uuid.New()
 	events := []es.Event{
 		{
-			AggregateType:    "TestAggregate",
-			AggregateID:      aggregateID,
-			AggregateVersion: 1,
-			EventID:          uuid.New(),
-			EventType:        "EventCreated",
-			EventVersion:     1,
-			Payload:          []byte(`{"id":1}`),
-			Metadata:         []byte(`{}`),
-			CreatedAt:        time.Now(),
+			AggregateType: "TestAggregate",
+			AggregateID:   aggregateID,
+			EventID:       uuid.New(),
+			EventType:     "EventCreated",
+			EventVersion:  1,
+			Payload:       []byte(`{"id":1}`),
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType:    "TestAggregate",
-			AggregateID:      aggregateID,
-			AggregateVersion: 2,
-			EventID:          uuid.New(),
-			EventType:        "EventUpdated",
-			EventVersion:     1,
-			Payload:          []byte(`{"id":2}`),
-			Metadata:         []byte(`{}`),
-			CreatedAt:        time.Now(),
+			AggregateType: "TestAggregate",
+			AggregateID:   aggregateID,
+			EventID:       uuid.New(),
+			EventType:     "EventUpdated",
+			EventVersion:  1,
+			Payload:       []byte(`{"id":2}`),
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
 		},
 	}
 
@@ -220,26 +218,26 @@ func TestProjection_Checkpoint(t *testing.T) {
 
 	// Append events
 	aggregateID := uuid.New()
-	for i := 1; i <= 5; i++ {
-		event := es.Event{
-			AggregateType:    "TestAggregate",
-			AggregateID:      aggregateID,
-			AggregateVersion: int64(i),
-			EventID:          uuid.New(),
-			EventType:        fmt.Sprintf("Event%d", i),
-			EventVersion:     1,
-			Payload:          []byte(fmt.Sprintf(`{"num":%d}`, i)),
-			Metadata:         []byte(`{}`),
-			CreatedAt:        time.Now(),
+	allEvents := make([]es.Event, 5)
+	for i := 0; i < 5; i++ {
+		allEvents[i] = es.Event{
+			AggregateType: "TestAggregate",
+			AggregateID:   aggregateID,
+			EventID:       uuid.New(),
+			EventType:     fmt.Sprintf("Event%d", i+1),
+			EventVersion:  1,
+			Payload:       []byte(fmt.Sprintf(`{"num":%d}`, i+1)),
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
 		}
-
-		tx, _ := db.BeginTx(ctx, nil)
-		_, err := store.Append(ctx, tx, []es.Event{event})
-		if err != nil {
-			t.Fatalf("Failed to append event: %v", err)
-		}
-		tx.Commit()
 	}
+
+	tx, _ := db.BeginTx(ctx, nil)
+	_, err := store.Append(ctx, tx, allEvents)
+	if err != nil {
+		t.Fatalf("Failed to append events: %v", err)
+	}
+	tx.Commit()
 
 	// First run processes some events
 	proj1 := newTestProjection("checkpoint_test")
@@ -294,15 +292,14 @@ func TestProjection_ErrorHandling(t *testing.T) {
 	// Append events
 	aggregateID := uuid.New()
 	event := es.Event{
-		AggregateType:    "TestAggregate",
-		AggregateID:      aggregateID,
-		AggregateVersion: 1,
-		EventID:          uuid.New(),
-		EventType:        "ErrorEvent",
-		EventVersion:     1,
-		Payload:          []byte(`{}`),
-		Metadata:         []byte(`{}`),
-		CreatedAt:        time.Now(),
+		AggregateType: "TestAggregate",
+		AggregateID:   aggregateID,
+		EventID:       uuid.New(),
+		EventType:     "ErrorEvent",
+		EventVersion:  1,
+		Payload:       []byte(`{}`),
+		Metadata:      []byte(`{}`),
+		CreatedAt:     time.Now(),
 	}
 
 	tx, _ := db.BeginTx(ctx, nil)

@@ -65,15 +65,14 @@ store := postgres.NewStore(postgres.DefaultStoreConfig())
 // Create events
 events := []es.Event{
     {
-        AggregateType:    "User",
-        AggregateID:      uuid.New(),
-        AggregateVersion: 1,
-        EventID:          uuid.New(),
-        EventType:        "UserCreated",
-        EventVersion:     1,
-        Payload:          []byte(`{"email":"user@example.com"}`),
-        Metadata:         []byte(`{}`),
-        CreatedAt:        time.Now(),
+        AggregateType: "User",
+        AggregateID:   uuid.New(),
+        EventID:       uuid.New(),
+        EventType:     "UserCreated",
+        EventVersion:  1,
+        Payload:       []byte(`{"email":"user@example.com"}`),
+        Metadata:      []byte(`{}`),
+        CreatedAt:     time.Now(),
     },
 }
 
@@ -133,10 +132,21 @@ es/
 ### Design Principles
 
 - **Transaction-Agnostic**: You control transaction boundaries
-- **Optimistic Concurrency**: Version conflicts are detected automatically
+- **Automatic Versioning**: The library assigns aggregate versions automatically - no need to track versions in your application code
+- **Optimistic Concurrency**: Version conflicts are detected automatically via database constraints
 - **Pull-Based Projections**: Read events sequentially by global position
 - **Immutable Events**: Events are value objects until persisted
 - **Clean Separation**: Infrastructure concerns don't leak into application code
+
+### Optimistic Concurrency
+
+The library handles optimistic concurrency automatically:
+
+1. When you append events, the store fetches the current `MAX(aggregate_version)` for the aggregate
+2. It assigns consecutive versions starting from `(max + 1)` to your events
+3. The database unique constraint on `(aggregate_type, aggregate_id, aggregate_version)` ensures no conflicts
+4. If another transaction commits between the version check and insert, you'll get `store.ErrOptimisticConcurrency`
+5. Simply retry your transaction if you encounter a concurrency error
 
 ## Projections
 
@@ -153,7 +163,7 @@ func (p *EmailNotificationProjection) Name() string {
     return "email_notifications"
 }
 
-func (p *EmailNotificationProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *EmailNotificationProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
     if event.EventType == "UserCreated" {
         var user UserCreated
         json.Unmarshal(event.Payload, &user)

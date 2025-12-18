@@ -9,6 +9,7 @@ import (
 
 	"github.com/getpup/pupsourcing/es"
 	"github.com/getpup/pupsourcing/es/store"
+	"github.com/lib/pq"
 )
 
 // StoreConfig contains configuration for the Postgres event store.
@@ -131,12 +132,19 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 
 // isUniqueViolation checks if an error is a PostgreSQL unique constraint violation.
 func isUniqueViolation(err error) bool {
-	// PostgreSQL error code 23505 is unique_violation
-	// The lib/pq driver returns errors with this in the message
-	return err != nil && (!errors.Is(err, sql.ErrNoRows)) &&
-		(fmt.Sprintf("%v", err) == "pq: duplicate key value violates unique constraint \"events_aggregate_type_aggregate_id_aggregate_version_key\"" ||
-			containsString(fmt.Sprintf("%v", err), "duplicate key") ||
-			containsString(fmt.Sprintf("%v", err), "unique constraint"))
+	if err == nil {
+		return false
+	}
+
+	// Check if it's a pq.Error with unique_violation code (23505)
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return pqErr.Code == "23505" // unique_violation
+	}
+
+	// Fallback: check error message for common patterns
+	errMsg := fmt.Sprintf("%v", err)
+	return containsString(errMsg, "duplicate key") || containsString(errMsg, "unique constraint")
 }
 
 func containsString(s, substr string) bool {

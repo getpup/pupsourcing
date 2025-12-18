@@ -180,7 +180,6 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 
 	aggregateID := uuid.New()
 
-	// First append succeeds
 	event1 := es.Event{
 		AggregateType: "TestAggregate",
 		AggregateID:   aggregateID,
@@ -192,17 +191,6 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 		CreatedAt:     time.Now(),
 	}
 
-	tx1, _ := db.BeginTx(ctx, nil)
-	defer tx1.Rollback()
-
-	_, err := str.Append(ctx, tx1, []es.Event{event1})
-	if err != nil {
-		t.Fatalf("First append failed: %v", err)
-	}
-	tx1.Commit()
-
-	// Second concurrent append should fail due to optimistic concurrency
-	// Both transactions try to append to the same aggregate simultaneously
 	event2 := es.Event{
 		AggregateType: "TestAggregate",
 		AggregateID:   aggregateID,
@@ -214,12 +202,37 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 		CreatedAt:     time.Now(),
 	}
 
+	// Start both transactions before either commits to simulate race condition
+	tx1, _ := db.BeginTx(ctx, nil)
+	defer tx1.Rollback()
+
 	tx2, _ := db.BeginTx(ctx, nil)
 	defer tx2.Rollback()
 
+	// Both transactions read MAX(version) = NULL and decide to use version 1
+	// Transaction 1 appends first
+	_, err := str.Append(ctx, tx1, []es.Event{event1})
+	if err != nil {
+		t.Fatalf("First append failed: %v", err)
+	}
+
+	// Transaction 2 also tries to append with version 1 (before tx1 commits)
+	// At this point, tx2 has already determined next version = 1
 	_, err = str.Append(ctx, tx2, []es.Event{event2})
+	if err != nil {
+		t.Fatalf("Second append in transaction failed: %v", err)
+	}
+
+	// Commit tx1 - this should succeed
+	if err := tx1.Commit(); err != nil {
+		t.Fatalf("First transaction commit failed: %v", err)
+	}
+
+	// Commit tx2 - this should fail with optimistic concurrency error
+	// because the unique constraint (aggregate_type, aggregate_id, aggregate_version) is violated
+	err = tx2.Commit()
 	if !errors.Is(err, store.ErrOptimisticConcurrency) {
-		t.Errorf("Expected optimistic concurrency error, got: %v", err)
+		t.Errorf("Expected optimistic concurrency error on commit, got: %v", err)
 	}
 }
 

@@ -10,6 +10,7 @@ package integration_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -196,7 +197,8 @@ func TestProjection_BasicProcessing(t *testing.T) {
 	defer cancel()
 
 	err = processor.Run(ctx2, proj)
-	if err != nil && err != context.DeadlineExceeded {
+	// Accept either no error, deadline exceeded, or wrapped deadline exceeded
+	if err != nil && err != context.DeadlineExceeded && !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Unexpected error from processor: %v", err)
 	}
 

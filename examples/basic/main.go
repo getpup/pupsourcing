@@ -1,0 +1,117 @@
+// Package main demonstrates basic usage of the pupsourcing library.
+package main
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/getpup/pupsourcing/es"
+	"github.com/getpup/pupsourcing/es/adapters/postgres"
+	"github.com/getpup/pupsourcing/es/projection"
+	"github.com/google/uuid"
+	_ "github.com/lib/pq"
+)
+
+//go:generate go run ../../cmd/migrate-gen -output ../../migrations -filename init.sql
+
+// UserCreated is a sample event payload
+type UserCreated struct {
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
+
+// UserProjection is an example projection that maintains a list of users
+type UserProjection struct {
+	users []string
+}
+
+func (p *UserProjection) Name() string {
+	return "user_list"
+}
+
+func (p *UserProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+	if event.EventType == "UserCreated" {
+		var payload UserCreated
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal event: %w", err)
+		}
+		p.users = append(p.users, payload.Email)
+		fmt.Printf("Projection processed: User created - %s (%s)\n", payload.Name, payload.Email)
+	}
+	return nil
+}
+
+func main() {
+	// This is a demonstration - in production, use proper connection management
+	connStr := "host=localhost port=5432 user=postgres password=postgres dbname=pupsourcing_example sslmode=disable"
+
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Create event store
+	store := postgres.NewStore(postgres.DefaultStoreConfig())
+
+	// Append some events
+	fmt.Println("Appending events...")
+	aggregateID := uuid.New()
+
+	payload1, _ := json.Marshal(UserCreated{
+		Email: "alice@example.com",
+		Name:  "Alice Smith",
+	})
+
+	events := []es.Event{
+		{
+			AggregateType:    "User",
+			AggregateID:      aggregateID,
+			AggregateVersion: 1,
+			EventID:          uuid.New(),
+			EventType:        "UserCreated",
+			EventVersion:     1,
+			Payload:          payload1,
+			Metadata:         []byte(`{}`),
+			CreatedAt:        time.Now(),
+		},
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		log.Fatalf("Failed to begin transaction: %v", err)
+	}
+
+	positions, err := store.Append(ctx, tx, events)
+	if err != nil {
+		tx.Rollback()
+		log.Fatalf("Failed to append events: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		log.Fatalf("Failed to commit: %v", err)
+	}
+
+	fmt.Printf("Events appended at positions: %v\n", positions)
+
+	// Process events with projection
+	fmt.Println("\nRunning projection...")
+	proj := &UserProjection{users: []string{}}
+	processor := projection.NewProcessor(db, store, projection.DefaultProcessorConfig())
+
+	// Run projection for a short time
+	ctx2, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	if err := processor.Run(ctx2, proj); err != nil && err != context.DeadlineExceeded {
+		log.Printf("Projection error: %v", err)
+	}
+
+	fmt.Printf("\nProjection result - Users: %v\n", proj.users)
+}

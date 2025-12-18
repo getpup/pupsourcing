@@ -32,3 +32,6 @@ go.work.sum
 # OS specific files
 .DS_Store
 Thumbs.db
+
+# Generated migrations (examples)
+/es/migrations/example_migrations/

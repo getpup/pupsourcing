@@ -219,7 +219,7 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 	tx2, _ := db.BeginTx(ctx, nil)
 	defer tx2.Rollback()
 
-	_, err = store.Append(ctx, tx2, []es.Event{event2})
+	_, err = pgStore.Append(ctx, tx2, []es.Event{event2})
 	if err != store.ErrOptimisticConcurrency {
 		t.Errorf("Expected optimistic concurrency error, got: %v", err)
 	}

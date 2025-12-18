@@ -49,7 +49,7 @@ type PartitionStrategy interface {
 type HashPartitionStrategy struct{}
 
 // ShouldProcess implements PartitionStrategy using FNV-1a hashing.
-func (HashPartitionStrategy) ShouldProcess(aggregateID string, partitionKey int, totalPartitions int) bool {
+func (HashPartitionStrategy) ShouldProcess(aggregateID string, partitionKey, totalPartitions int) bool {
 	if totalPartitions <= 1 {
 		return true
 	}
@@ -62,6 +62,9 @@ func (HashPartitionStrategy) ShouldProcess(aggregateID string, partitionKey int,
 
 // ProcessorConfig configures a projection processor.
 type ProcessorConfig struct {
+	// PartitionStrategy determines which events this processor handles
+	PartitionStrategy PartitionStrategy
+
 	// EventsTable is the name of the events table
 	EventsTable string
 
@@ -76,9 +79,6 @@ type ProcessorConfig struct {
 
 	// TotalPartitions is the total number of processor instances
 	TotalPartitions int
-
-	// PartitionStrategy determines which events this processor handles
-	PartitionStrategy PartitionStrategy
 }
 
 // DefaultProcessorConfig returns the default configuration.
@@ -109,7 +109,7 @@ func NewProcessor(db *sql.DB, eventReader store.EventReader, config ProcessorCon
 	}
 }
 
-// Run processes events for the given projection until the context is cancelled.
+// Run processes events for the given projection until the context is canceled.
 // It reads events in batches, applies the partition filter, and updates checkpoints.
 // Returns ErrProjectionStopped if the projection handler returns an error.
 func (p *Processor) Run(ctx context.Context, projection Projection) error {
@@ -137,7 +137,9 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	// Get current checkpoint
 	checkpoint, err := p.getCheckpoint(ctx, tx, projection.Name())
@@ -157,7 +159,8 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 
 	// Process events with partition filter
 	var lastPosition int64
-	for _, event := range events {
+	for i := range events {
+		event := &events[i]
 		// Apply partition filter
 		if !p.config.PartitionStrategy.ShouldProcess(
 			event.AggregateID.String(),
@@ -169,9 +172,9 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 		}
 
 		// Handle event
-		err := projection.Handle(ctx, tx, event)
-		if err != nil {
-			return fmt.Errorf("projection handler error at position %d: %w", event.GlobalPosition, err)
+		handlerErr := projection.Handle(ctx, tx, *event)
+		if handlerErr != nil {
+			return fmt.Errorf("projection handler error at position %d: %w", event.GlobalPosition, handlerErr)
 		}
 
 		lastPosition = event.GlobalPosition

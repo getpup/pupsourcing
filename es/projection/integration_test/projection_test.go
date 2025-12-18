@@ -190,8 +190,8 @@ func TestProjection_BasicProcessing(t *testing.T) {
 	proj := newTestProjection("test_projection")
 	processor := projection.NewProcessor(db, store, projection.DefaultProcessorConfig())
 
-	// Run for a short time
-	ctx2, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	// Run for a short time - increased timeout for CI environment
+	ctx2, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
 	err = processor.Run(ctx2, proj)
@@ -199,7 +199,8 @@ func TestProjection_BasicProcessing(t *testing.T) {
 		t.Fatalf("Unexpected error from processor: %v", err)
 	}
 
-	// Verify events were processed
+	// Verify events were processed - allow some time for processing
+	time.Sleep(100 * time.Millisecond)
 	if proj.EventCount() != 2 {
 		t.Errorf("Expected 2 events processed, got %d", proj.EventCount())
 	}

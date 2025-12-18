@@ -33,7 +33,7 @@ func (p *UserProjection) Name() string {
 	return "user_list"
 }
 
-func (p *UserProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
+func (p *UserProjection) Handle(_ context.Context, _ es.DBTX, event *es.PersistedEvent) error {
 	if event.EventType == "UserCreated" {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
@@ -64,10 +64,13 @@ func main() {
 	fmt.Println("Appending events...")
 	aggregateID := uuid.New()
 
-	payload1, _ := json.Marshal(UserCreated{
+	payload1, err := json.Marshal(UserCreated{
 		Email: "alice@example.com",
 		Name:  "Alice Smith",
 	})
+	if err != nil {
+		log.Fatalf("Failed to marshal event: %v", err)
+	}
 
 	events := []es.Event{
 		{
@@ -87,10 +90,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to begin transaction: %v", err)
 	}
+	defer func() {
+		//nolint:errcheck // Rollback error ignored: expected to fail if commit succeeds
+		tx.Rollback()
+	}()
 
 	positions, err := store.Append(ctx, tx, events)
 	if err != nil {
-		tx.Rollback()
 		log.Fatalf("Failed to append events: %v", err)
 	}
 

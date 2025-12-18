@@ -73,9 +73,10 @@ func getTestDB(t *testing.T) *sql.DB {
 func setupTestTables(t *testing.T, db *sql.DB) {
 	t.Helper()
 
+	// Drop existing objects to ensure clean state
 	_, err := db.Exec(`
-		DROP TABLE IF EXISTS events CASCADE;
 		DROP TABLE IF EXISTS projection_checkpoints CASCADE;
+		DROP TABLE IF EXISTS events CASCADE;
 	`)
 	if err != nil {
 		t.Fatalf("Failed to drop tables: %v", err)
@@ -124,10 +125,10 @@ func (p *testProjection) Name() string {
 	return p.name
 }
 
-func (p *testProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *testProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.events = append(p.events, event)
+	p.events = append(p.events, *event)
 	return nil
 }
 
@@ -331,6 +332,6 @@ func (p *errorProjection) Name() string {
 	return p.name
 }
 
-func (p *errorProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *errorProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
 	return fmt.Errorf("intentional error")
 }

@@ -1,4 +1,30 @@
 // Package pupsourcing provides event sourcing capabilities for Go applications.
+//
+// This package serves as the main entry point for the pupsourcing library.
+// For the core event sourcing functionality, see the es package and its subpackages:
+//
+//	es           - Core types and interfaces
+//	es/store     - Event store abstractions
+//	es/projection - Projection processing
+//	es/adapters/postgres - PostgreSQL implementation
+//	es/migrations - Migration generation
+//
+// Quick Start:
+//
+// 1. Generate migrations:
+//	go run github.com/getpup/pupsourcing/cmd/migrate-gen -output migrations
+//
+// 2. Create store and append events:
+//	store := postgres.NewStore(postgres.DefaultStoreConfig())
+//	tx, _ := db.BeginTx(ctx, nil)
+//	positions, err := store.Append(ctx, tx, events)
+//	tx.Commit()
+//
+// 3. Process events:
+//	processor := projection.NewProcessor(db, store, projection.DefaultProcessorConfig())
+//	processor.Run(ctx, myProjection)
+//
+// See the examples directory for complete working examples.
 package pupsourcing
 
 // Version returns the current version of the library.

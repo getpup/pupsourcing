@@ -66,7 +66,10 @@ func main() {
     store := postgres.NewStore(postgres.DefaultStoreConfig())
 
     // Create snapshot projection
-    snapshotProj := projections.NewSnapshotProjection(projections.DefaultSnapshotConfig())
+    snapshotProj, err := projections.NewSnapshotProjection(projections.DefaultSnapshotConfig())
+    if err != nil {
+        log.Fatal(err)
+    }
 
     // Create processor
     processor := projection.NewProcessor(db, store, projection.DefaultProcessorConfig())
@@ -87,8 +90,13 @@ You can customize the snapshots table name:
 config := projections.SnapshotConfig{
     SnapshotsTable: "custom_snapshots",
 }
-snapshotProj := projections.NewSnapshotProjection(config)
+snapshotProj, err := projections.NewSnapshotProjection(config)
+if err != nil {
+    log.Fatal(err)
+}
 ```
+
+**Note**: Table names are validated to prevent SQL injection. Only alphanumeric characters and underscores are allowed.
 
 ## How It Works
 

@@ -134,7 +134,10 @@ func TestSnapshotProjection_Integration(t *testing.T) {
 	snapshotConfig := projections.SnapshotConfig{
 		SnapshotsTable: "test_snapshots",
 	}
-	snapshotProj := projections.NewSnapshotProjection(snapshotConfig)
+	snapshotProj, err := projections.NewSnapshotProjection(snapshotConfig)
+	if err != nil {
+		t.Fatalf("Failed to create snapshot projection: %v", err)
+	}
 
 	// Append some events
 	aggregateID := uuid.New()
@@ -248,7 +251,10 @@ func TestSnapshotProjection_UpdatesExisting(t *testing.T) {
 	snapshotConfig := projections.SnapshotConfig{
 		SnapshotsTable: "test_snapshots",
 	}
-	snapshotProj := projections.NewSnapshotProjection(snapshotConfig)
+	snapshotProj, err := projections.NewSnapshotProjection(snapshotConfig)
+	if err != nil {
+		t.Fatalf("Failed to create snapshot projection: %v", err)
+	}
 
 	aggregateID := uuid.New()
 

@@ -2,9 +2,20 @@ package projections
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"regexp"
 
 	"github.com/getpup/pupsourcing/es"
+)
+
+var (
+	// ErrInvalidTableName indicates the table name contains invalid characters
+	ErrInvalidTableName = errors.New("invalid table name: must contain only alphanumeric characters and underscores")
+
+	// validTableNameRegex validates PostgreSQL table names
+	// Allows: letters, numbers, underscores (standard SQL identifiers)
+	validTableNameRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 )
 
 // SnapshotConfig configures the snapshot projection.
@@ -36,10 +47,15 @@ type SnapshotProjection struct {
 }
 
 // NewSnapshotProjection creates a new snapshot projection with the given configuration.
-func NewSnapshotProjection(config SnapshotConfig) *SnapshotProjection {
+// Returns an error if the table name is invalid.
+func NewSnapshotProjection(config SnapshotConfig) (*SnapshotProjection, error) {
+	if !validTableNameRegex.MatchString(config.SnapshotsTable) {
+		return nil, fmt.Errorf("%w: %q", ErrInvalidTableName, config.SnapshotsTable)
+	}
+
 	return &SnapshotProjection{
 		config: config,
-	}
+	}, nil
 }
 
 // Name returns the projection name used for checkpoint tracking.

@@ -119,7 +119,7 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 
 		if err != nil {
 			// Check if this is a unique constraint violation (optimistic concurrency failure)
-			if isUniqueViolation(err) {
+			if IsUniqueViolation(err) {
 				return nil, store.ErrOptimisticConcurrency
 			}
 			return nil, fmt.Errorf("failed to insert event %d: %w", i, err)
@@ -130,8 +130,9 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 	return globalPositions, nil
 }
 
-// isUniqueViolation checks if an error is a PostgreSQL unique constraint violation.
-func isUniqueViolation(err error) bool {
+// IsUniqueViolation checks if an error is a PostgreSQL unique constraint violation.
+// This is exported for testing purposes.
+func IsUniqueViolation(err error) bool {
 	if err == nil {
 		return false
 	}

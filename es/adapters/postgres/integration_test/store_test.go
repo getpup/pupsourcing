@@ -10,6 +10,7 @@ package integration_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -177,7 +178,7 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 	setupTestTables(t, db)
 
 	ctx := context.Background()
-	store := postgres.NewStore(postgres.DefaultStoreConfig())
+	str := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	aggregateID := uuid.New()
 
@@ -197,7 +198,7 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 	tx1, _ := db.BeginTx(ctx, nil)
 	defer tx1.Rollback()
 
-	_, err := store.Append(ctx, tx1, []es.Event{event1})
+	_, err := str.Append(ctx, tx1, []es.Event{event1})
 	if err != nil {
 		t.Fatalf("First append failed: %v", err)
 	}
@@ -219,8 +220,8 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 	tx2, _ := db.BeginTx(ctx, nil)
 	defer tx2.Rollback()
 
-	_, err = store.Append(ctx, tx2, []es.Event{event2})
-	if err != store.ErrOptimisticConcurrency {
+	_, err = str.Append(ctx, tx2, []es.Event{event2})
+	if !errors.Is(err, store.ErrOptimisticConcurrency) {
 		t.Errorf("Expected optimistic concurrency error, got: %v", err)
 	}
 }

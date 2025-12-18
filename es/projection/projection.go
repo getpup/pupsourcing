@@ -25,7 +25,8 @@ type Projection interface {
 
 	// Handle processes a single event.
 	// Return an error to stop projection processing.
-	Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error
+	// Event is passed by pointer to avoid copying large structs.
+	Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error
 }
 
 // PartitionStrategy defines how events are partitioned across projection instances.
@@ -138,7 +139,7 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		//nolint:errcheck Ignore rollback error as it's expected to fail if commit succeeds
+		//nolint:errcheck // Rollback error ignored: expected to fail if commit succeeds
 		tx.Rollback()
 	}()
 
@@ -173,7 +174,7 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 		}
 
 		// Handle event
-		handlerErr := projection.Handle(ctx, tx, *event)
+		handlerErr := projection.Handle(ctx, tx, event)
 		if handlerErr != nil {
 			return fmt.Errorf("projection handler error at position %d: %w", event.GlobalPosition, handlerErr)
 		}

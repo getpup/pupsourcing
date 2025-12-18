@@ -75,10 +75,10 @@ func getTestDB(t *testing.T) *sql.DB {
 func setupTestTables(t *testing.T, db *sql.DB) {
 	t.Helper()
 
-	// Drop tables if they exist
+	// Drop existing objects to ensure clean state
 	_, err := db.Exec(`
-		DROP TABLE IF EXISTS events CASCADE;
 		DROP TABLE IF EXISTS projection_checkpoints CASCADE;
+		DROP TABLE IF EXISTS events CASCADE;
 	`)
 	if err != nil {
 		t.Fatalf("Failed to drop tables: %v", err)

@@ -73,10 +73,7 @@ func TestGeneratePostgres(t *testing.T) {
 		}
 	}
 
-	// Verify comments about design decisions
-	if !strings.Contains(sql, "BYTEA for payload") {
-		t.Error("Missing comment explaining BYTEA choice for payload")
-	}
+	// Verify essential tables are present
 	if !strings.Contains(sql, "projection_checkpoints") {
 		t.Error("Missing projection_checkpoints table")
 	}

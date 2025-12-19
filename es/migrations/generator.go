@@ -60,12 +60,6 @@ func generatePostgresSQL(config *Config) string {
 -- Generated: %s
 
 -- Events table stores all domain events in append-only fashion
--- Design decisions:
--- - BYTEA for payload: Supports any serialization format (JSON, Protobuf, etc.)
---   giving users flexibility without forcing a specific encoding
--- - BIGSERIAL for global_position: Ensures globally ordered event log
--- - UUID for event_id: Guarantees uniqueness even in distributed scenarios
--- - Optimistic concurrency via aggregate_version prevents race conditions
 CREATE TABLE IF NOT EXISTS %s (
     global_position BIGSERIAL PRIMARY KEY,
     aggregate_type TEXT NOT NULL,
@@ -85,11 +79,11 @@ CREATE TABLE IF NOT EXISTS %s (
     UNIQUE (aggregate_type, aggregate_id, aggregate_version)
 );
 
--- Index for aggregate stream reads (get all events for an aggregate)
+-- Index for aggregate stream reads
 CREATE INDEX IF NOT EXISTS idx_%s_aggregate 
     ON %s (aggregate_type, aggregate_id, aggregate_version);
 
--- Index for event type queries (useful for specialized projections)
+-- Index for event type queries
 CREATE INDEX IF NOT EXISTS idx_%s_event_type 
     ON %s (event_type, global_position);
 
@@ -98,13 +92,8 @@ CREATE INDEX IF NOT EXISTS idx_%s_correlation
     ON %s (correlation_id) WHERE correlation_id IS NOT NULL;
 
 -- Aggregate heads table tracks the current version of each aggregate
--- This is core event store infrastructure (not a projection or snapshot)
--- Purpose: Provides O(1) lookup of aggregate version, eliminating MAX() queries
--- Design decisions:
--- - Primary key on (aggregate_type, aggregate_id): Ensures one row per aggregate
--- - aggregate_version: Tracks the highest version written for this aggregate
--- - updated_at: For observability and debugging
--- Note: This is NOT a snapshot - it contains no aggregate state, only version tracking
+-- Provides O(1) version lookup for event append operations
+-- Primary key (aggregate_type, aggregate_id) ensures one row per aggregate
 CREATE TABLE IF NOT EXISTS %s (
     aggregate_type TEXT NOT NULL,
     aggregate_id UUID NOT NULL,
@@ -114,23 +103,18 @@ CREATE TABLE IF NOT EXISTS %s (
     PRIMARY KEY (aggregate_type, aggregate_id)
 );
 
--- Index for observability queries
+-- Index for observability
 CREATE INDEX IF NOT EXISTS idx_%s_updated 
     ON %s (updated_at);
 
 -- Projection checkpoints table tracks progress of each projection
--- Naming: "projection_checkpoints" clearly indicates purpose and scope
--- Alternative names considered:
--- - "offsets": Too generic, unclear what's being tracked
--- - "positions": Doesn't indicate it's projection-specific
--- - "projection_state": Too broad, checkpoints are specifically about position tracking
 CREATE TABLE IF NOT EXISTS %s (
     projection_name TEXT PRIMARY KEY,
     last_global_position BIGINT NOT NULL DEFAULT 0,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Index for checkpoint queries (though typically few rows, helps with concurrent access)
+-- Index for checkpoints
 CREATE INDEX IF NOT EXISTS idx_%s_updated 
     ON %s (updated_at);
 `,

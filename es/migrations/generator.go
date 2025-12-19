@@ -39,7 +39,7 @@ func DefaultConfig() Config {
 }
 
 // GeneratePostgres generates a PostgreSQL migration file.
-func GeneratePostgres(config Config) error {
+func GeneratePostgres(config *Config) error {
 	// Ensure output folder exists
 	if err := os.MkdirAll(config.OutputFolder, 0o755); err != nil {
 		return fmt.Errorf("failed to create output folder: %w", err)
@@ -55,7 +55,7 @@ func GeneratePostgres(config Config) error {
 	return nil
 }
 
-func generatePostgresSQL(config Config) string {
+func generatePostgresSQL(config *Config) string {
 	return fmt.Sprintf(`-- Event Sourcing Infrastructure Migration
 -- Generated: %s
 

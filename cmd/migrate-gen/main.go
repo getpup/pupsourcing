@@ -36,7 +36,7 @@ func main() {
 		config.OutputFilename = *outputFilename
 	}
 
-	err := migrations.GeneratePostgres(config)
+	err := migrations.GeneratePostgres(&config)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating migration: %v\n", err)
 		os.Exit(1)

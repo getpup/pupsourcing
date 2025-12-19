@@ -93,7 +93,7 @@ func setupTestTables(t *testing.T, db *sql.DB) {
 		AggregateHeadsTable: "aggregate_heads",
 	}
 
-	if err := migrations.GeneratePostgres(config); err != nil {
+	if err := migrations.GeneratePostgres(&config); err != nil {
 		t.Fatalf("Failed to generate migration: %v", err)
 	}
 

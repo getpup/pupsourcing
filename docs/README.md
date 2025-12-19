@@ -6,11 +6,10 @@ Welcome to the pupsourcing documentation! This library provides minimal, product
 
 1. [Getting Started](./getting-started.md) - Installation, setup, and your first events
 2. [Core Concepts](./core-concepts.md) - Understanding event sourcing with pupsourcing
-3. [Projections Guide](./projections.md) - Complete guide to event projections
-4. [Scaling & Advanced Usage](./scaling.md) - Horizontal scaling and production patterns
-5. [API Reference](./api-reference.md) - Complete API documentation
-6. [Industry Alignment](./industry-alignment.md) - Comparison with other event sourcing systems
-7. [Deployment Guide](./deployment.md) - Production deployment patterns
+3. [Projections Guide](./scaling.md) - Complete guide to projections and scaling
+4. [API Reference](./api-reference.md) - Complete API documentation
+5. [Industry Alignment](./industry-alignment.md) - Comparison with other event sourcing systems
+6. [Deployment Guide](./deployment.md) - Production deployment patterns and operations
 
 ## Quick Links
 

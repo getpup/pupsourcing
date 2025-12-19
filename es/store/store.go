@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/getpup/pupsourcing/es"
+	"github.com/google/uuid"
 )
 
 var (
@@ -41,4 +42,25 @@ type EventReader interface {
 	// Returns up to limit events.
 	// Events are ordered by global_position ascending.
 	ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, limit int) ([]es.PersistedEvent, error)
+}
+
+// AggregateStreamReader defines the interface for reading events for a specific aggregate.
+type AggregateStreamReader interface {
+	// ReadAggregateStream reads all events for a specific aggregate instance.
+	// Events are ordered by aggregate_version ascending.
+	//
+	// Parameters:
+	// - aggregateType: the type of aggregate (e.g., "User", "Order")
+	// - aggregateID: the unique identifier of the aggregate instance
+	// - fromVersion: optional minimum version (inclusive). Pass nil to read from the beginning.
+	// - toVersion: optional maximum version (inclusive). Pass nil to read to the end.
+	//
+	// Examples:
+	// - ReadAggregateStream(ctx, tx, "User", id, nil, nil) - read all events
+	// - ReadAggregateStream(ctx, tx, "User", id, ptr(5), nil) - read from version 5 onwards
+	// - ReadAggregateStream(ctx, tx, "User", id, nil, ptr(10)) - read up to version 10
+	// - ReadAggregateStream(ctx, tx, "User", id, ptr(5), ptr(10)) - read versions 5-10
+	//
+	// Returns an empty slice if no events match the criteria.
+	ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID uuid.UUID, fromVersion, toVersion *int64) ([]es.PersistedEvent, error)
 }

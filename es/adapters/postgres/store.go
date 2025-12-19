@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 
 	"github.com/getpup/pupsourcing/es"
@@ -199,6 +200,75 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 	rows, err := tx.QueryContext(ctx, query, fromPosition, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []es.PersistedEvent
+	for rows.Next() {
+		var e es.PersistedEvent
+		err := rows.Scan(
+			&e.GlobalPosition,
+			&e.AggregateType,
+			&e.AggregateID,
+			&e.AggregateVersion,
+			&e.EventID,
+			&e.EventType,
+			&e.EventVersion,
+			&e.Payload,
+			&e.TraceID,
+			&e.CorrelationID,
+			&e.CausationID,
+			&e.Metadata,
+			&e.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan event: %w", err)
+		}
+		events = append(events, e)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	return events, nil
+}
+
+// ReadAggregateStream implements store.AggregateStreamReader.
+func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID uuid.UUID, fromVersion, toVersion *int64) ([]es.PersistedEvent, error) {
+	// Build the query dynamically based on optional version parameters
+	baseQuery := fmt.Sprintf(`
+		SELECT 
+			global_position, aggregate_type, aggregate_id, aggregate_version,
+			event_id, event_type, event_version,
+			payload, trace_id, correlation_id, causation_id,
+			metadata, created_at
+		FROM %s
+		WHERE aggregate_type = $1 AND aggregate_id = $2
+	`, s.config.EventsTable)
+
+	var args []interface{}
+	args = append(args, aggregateType, aggregateID)
+	paramIndex := 3
+
+	// Add version range filters if specified
+	if fromVersion != nil {
+		baseQuery += fmt.Sprintf(" AND aggregate_version >= $%d", paramIndex)
+		args = append(args, *fromVersion)
+		paramIndex++
+	}
+
+	if toVersion != nil {
+		baseQuery += fmt.Sprintf(" AND aggregate_version <= $%d", paramIndex)
+		args = append(args, *toVersion)
+	}
+
+	// Always order by aggregate_version ASC
+	baseQuery += " ORDER BY aggregate_version ASC"
+
+	rows, err := tx.QueryContext(ctx, baseQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query aggregate stream: %w", err)
 	}
 	defer rows.Close()
 

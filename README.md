@@ -215,6 +215,94 @@ processor := projection.NewProcessor(db, store, config)
 
 Events for the same aggregate always go to the same partition, maintaining ordering guarantees.
 
+### Projection Orchestration
+
+For running multiple projections or scaling projections across multiple workers, use the `runner` package:
+
+```go
+import "github.com/getpup/pupsourcing/es/projection/runner"
+
+// Run a single projection with N workers (in-process scaling)
+err := runner.RunProjectionPartitions(ctx, db, store, projection, 4)
+
+// Run multiple projections concurrently
+configs := []runner.ProjectionConfig{
+    {Projection: &Projection1{}, ProcessorConfig: config1},
+    {Projection: &Projection2{}, ProcessorConfig: config2},
+}
+err := runner.RunMultipleProjections(ctx, db, store, configs)
+```
+
+### CLI-Friendly Patterns
+
+Design your projection runners to work as CLI commands:
+
+```go
+func main() {
+    partitionKey := flag.Int("partition-key", 0, "Partition key")
+    totalPartitions := flag.Int("total-partitions", 1, "Total partitions")
+    flag.Parse()
+    
+    // Configure projection with partition info
+    config := projection.DefaultProcessorConfig()
+    config.PartitionKey = *partitionKey
+    config.TotalPartitions = *totalPartitions
+    
+    processor := projection.NewProcessor(db, store, config)
+    err := processor.Run(ctx, projection)
+}
+```
+
+Run multiple instances safely:
+```bash
+# Terminal 1
+./myapp projections --partition-key=0 --total-partitions=4
+
+# Terminal 2
+./myapp projections --partition-key=1 --total-partitions=4
+
+# Terminal 3-4: same with partition-key=2 and 3
+```
+
+### Scaling Patterns
+
+**Single Process, Multiple Workers (Worker Pool)**
+```go
+// 4 workers in the same process
+runner.RunProjectionPartitions(ctx, db, store, projection, 4)
+```
+
+**Multiple Processes, Partitioned**
+```bash
+# Run the same binary with different partition keys
+PARTITION_KEY=0 ./myapp &
+PARTITION_KEY=1 ./myapp &
+PARTITION_KEY=2 ./myapp &
+PARTITION_KEY=3 ./myapp &
+```
+
+**Mixed: Multiple Projections with Different Scaling**
+```go
+configs := []runner.ProjectionConfig{
+    {
+        Projection: &FastProjection{},
+        ProcessorConfig: projection.ProcessorConfig{
+            BatchSize: 1000,
+            PartitionKey: 0,
+            TotalPartitions: 1,  // Single worker
+        },
+    },
+    {
+        Projection: &SlowProjection{},
+        ProcessorConfig: projection.ProcessorConfig{
+            BatchSize: 10,
+            PartitionKey: workerID,
+            TotalPartitions: 4,  // 4 workers
+        },
+    },
+}
+```
+
 ## Configuration
 
 ### Event Store
@@ -305,27 +393,74 @@ This table tracks the current version of each aggregate, providing O(1) version 
 - **aggregate_version**: Enables optimistic concurrency control
 - **aggregate_heads table**: Efficient O(1) version tracking
 
+## Documentation
+
+Comprehensive documentation is available in the [`docs/`](./docs) directory:
+
+- **[Getting Started](./docs/getting-started.md)** - Installation, setup, and first steps
+- **[Core Concepts](./docs/core-concepts.md)** - Understanding event sourcing with pupsourcing
+- **[Projections & Scaling](./docs/scaling.md)** - Advanced projection patterns and horizontal scaling
+- **[Industry Alignment](./docs/industry-alignment.md)** - Comparison with Kafka, EventStoreDB, Axon, Watermill
+- **[Deployment Guide](./docs/deployment.md)** - Production deployment patterns (coming soon)
+
 ## Examples
 
-See the [examples](./examples) directory for complete working examples:
+Complete, runnable examples demonstrating various patterns:
 
-- [Basic Usage](./examples/basic/main.go) - Simple event append and projection
+- **[Single Worker](./examples/single-worker/)** - Simplest pattern (1 projection, 1 worker)
+- **[Partitioned](./examples/partitioned/)** - Horizontal scaling across multiple processes
+- **[Worker Pool](./examples/worker-pool/)** - Multiple workers in the same process
+- **[Multiple Projections](./examples/multiple-projections/)** - Running different projections concurrently
+- **[Scaling](./examples/scaling/)** - Dynamic scaling from 1→N workers
+- **[Stop/Resume](./examples/stop-resume/)** - Checkpoint reliability demonstration
+- **[Basic](./examples/basic/)** - Original simple example
+
+See the [examples README](./examples/README.md) for detailed instructions.
 
 ## Project Structure
 
 ```
 .
-├── es/                   # Core event sourcing packages
-│   ├── store/           # Event store abstractions
-│   ├── projection/      # Projection processing
-│   ├── adapters/        # Database adapters
-│   │   └── postgres/    # PostgreSQL adapter
-│   └── migrations/      # Migration generation
+├── es/                      # Core event sourcing packages
+│   ├── event.go            # Core event types
+│   ├── dbtx.go             # Database transaction abstraction
+│   ├── store/              # Event store interfaces
+│   ├── projection/         # Projection processing
+│   │   └── runner/         # Projection orchestration tooling
+│   ├── adapters/
+│   │   └── postgres/       # PostgreSQL implementation
+│   └── migrations/         # Migration generation
 ├── cmd/
-│   └── migrate-gen/     # Migration generator CLI
-├── examples/            # Example applications
-└── pkg/                 # Public API
+│   └── migrate-gen/        # Migration generator CLI
+├── docs/                   # Comprehensive documentation
+├── examples/               # Runnable examples (7 patterns)
+└── pkg/                    # Public API
 ```
+
+## What pupsourcing Does NOT Handle
+
+pupsourcing is a **library, not a framework**. It intentionally does not include:
+
+- ❌ Automatic scheduling or background daemons
+- ❌ Built-in Kubernetes/systemd integration
+- ❌ Global coordination services (leader election, service discovery)
+- ❌ Opinionated deployment models
+- ❌ Automatic projection discovery
+- ❌ Built-in monitoring/metrics (bring your own)
+
+Instead, pupsourcing provides:
+
+- ✅ **Building blocks** for projection orchestration (runner package)
+- ✅ **CLI-friendly helpers** for running projections
+- ✅ **Database-based coordination** (checkpoints, no external services)
+- ✅ **Explicit APIs** - you wire everything together
+- ✅ **Flexible deployment** - works with any orchestration system
+
+This design makes pupsourcing:
+- Simple to understand and debug
+- Easy to integrate into existing applications
+- Free from deployment assumptions
+- Suitable for any environment (local, Docker, k8s, systemd, etc.)
 
 ## Development
 
@@ -358,6 +493,8 @@ Current scope (v1):
 - ✅ Optimistic concurrency
 - ✅ Horizontal scaling support
 - ✅ Read API for aggregate streams
+- ✅ Projection orchestration tooling (runner package)
+- ✅ Comprehensive documentation and examples
 
 Future considerations:
 - Snapshots for long-lived aggregates

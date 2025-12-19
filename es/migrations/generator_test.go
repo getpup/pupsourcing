@@ -17,7 +17,7 @@ func TestGeneratePostgres(t *testing.T) {
 		CheckpointsTable: "projection_checkpoints",
 	}
 
-	err := GeneratePostgres(config)
+	err := GeneratePostgres(&config)
 	if err != nil {
 		t.Fatalf("GeneratePostgres failed: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestGeneratePostgres_CustomTableNames(t *testing.T) {
 		CheckpointsTable: "custom_checkpoints",
 	}
 
-	err := GeneratePostgres(config)
+	err := GeneratePostgres(&config)
 	if err != nil {
 		t.Fatalf("GeneratePostgres failed: %v", err)
 	}

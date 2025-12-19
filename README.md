@@ -142,11 +142,14 @@ es/
 
 The library handles optimistic concurrency automatically:
 
-1. When you append events, the store fetches the current `MAX(aggregate_version)` for the aggregate
-2. It assigns consecutive versions starting from `(max + 1)` to your events
+1. When you append events, the store fetches the current version from the `aggregate_heads` table (O(1) lookup)
+2. It assigns consecutive versions starting from `(current + 1)` to your events
 3. The database unique constraint on `(aggregate_type, aggregate_id, aggregate_version)` ensures no conflicts
-4. If another transaction commits between the version check and insert, you'll get `store.ErrOptimisticConcurrency`
-5. Simply retry your transaction if you encounter a concurrency error
+4. The `aggregate_heads` table is updated atomically with the new version in the same transaction
+5. If another transaction commits between the version check and insert, you'll get `store.ErrOptimisticConcurrency`
+6. Simply retry your transaction if you encounter a concurrency error
+
+The `aggregate_heads` table is core event store infrastructure (not a projection or snapshot) that tracks the current version of each aggregate, eliminating expensive MAX() queries and providing efficient version tracking.
 
 ## Projections
 
@@ -255,12 +258,27 @@ CREATE TABLE events (
 );
 ```
 
+### Aggregate Heads Table
+
+```sql
+CREATE TABLE aggregate_heads (
+    aggregate_type TEXT NOT NULL,
+    aggregate_id UUID NOT NULL,
+    aggregate_version BIGINT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (aggregate_type, aggregate_id)
+);
+```
+
+This table is **core event store infrastructure** (not a projection or snapshot) that tracks the current version of each aggregate. It provides O(1) version lookups, eliminating expensive MAX() queries on the events table.
+
 ### Key Design Decisions
 
 - **BYTEA for payload**: Supports any serialization format (JSON, Protobuf, etc.)
 - **BIGSERIAL for global_position**: Ensures globally ordered event log
 - **UUID for event_id**: Guarantees uniqueness in distributed scenarios
 - **aggregate_version**: Enables optimistic concurrency control
+- **aggregate_heads table**: Core infrastructure for efficient version tracking
 
 ## Examples
 

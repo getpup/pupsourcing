@@ -21,16 +21,20 @@ type Config struct {
 
 	// CheckpointsTable is the name of the projection checkpoints table
 	CheckpointsTable string
+
+	// AggregateHeadsTable is the name of the aggregate version tracking table
+	AggregateHeadsTable string
 }
 
 // DefaultConfig returns the default configuration.
 func DefaultConfig() Config {
 	timestamp := time.Now().Format("20060102150405")
 	return Config{
-		OutputFolder:     "migrations",
-		OutputFilename:   fmt.Sprintf("%s_init_event_sourcing.sql", timestamp),
-		EventsTable:      "events",
-		CheckpointsTable: "projection_checkpoints",
+		OutputFolder:        "migrations",
+		OutputFilename:      fmt.Sprintf("%s_init_event_sourcing.sql", timestamp),
+		EventsTable:         "events",
+		CheckpointsTable:    "projection_checkpoints",
+		AggregateHeadsTable: "aggregate_heads",
 	}
 }
 
@@ -93,6 +97,27 @@ CREATE INDEX IF NOT EXISTS idx_%s_event_type
 CREATE INDEX IF NOT EXISTS idx_%s_correlation 
     ON %s (correlation_id) WHERE correlation_id IS NOT NULL;
 
+-- Aggregate heads table tracks the current version of each aggregate
+-- This is core event store infrastructure (not a projection or snapshot)
+-- Purpose: Provides O(1) lookup of aggregate version, eliminating MAX() queries
+-- Design decisions:
+-- - Primary key on (aggregate_type, aggregate_id): Ensures one row per aggregate
+-- - aggregate_version: Tracks the highest version written for this aggregate
+-- - updated_at: For observability and debugging
+-- Note: This is NOT a snapshot - it contains no aggregate state, only version tracking
+CREATE TABLE IF NOT EXISTS %s (
+    aggregate_type TEXT NOT NULL,
+    aggregate_id UUID NOT NULL,
+    aggregate_version BIGINT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    
+    PRIMARY KEY (aggregate_type, aggregate_id)
+);
+
+-- Index for observability queries
+CREATE INDEX IF NOT EXISTS idx_%s_updated 
+    ON %s (updated_at);
+
 -- Projection checkpoints table tracks progress of each projection
 -- Naming: "projection_checkpoints" clearly indicates purpose and scope
 -- Alternative names considered:
@@ -114,6 +139,8 @@ CREATE INDEX IF NOT EXISTS idx_%s_updated
 		config.EventsTable, config.EventsTable,
 		config.EventsTable, config.EventsTable,
 		config.EventsTable, config.EventsTable,
+		config.AggregateHeadsTable,
+		config.AggregateHeadsTable, config.AggregateHeadsTable,
 		config.CheckpointsTable,
 		config.CheckpointsTable, config.CheckpointsTable,
 	)

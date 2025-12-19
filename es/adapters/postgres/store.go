@@ -21,13 +21,17 @@ type StoreConfig struct {
 
 	// CheckpointsTable is the name of the projection checkpoints table
 	CheckpointsTable string
+
+	// AggregateHeadsTable is the name of the aggregate version tracking table
+	AggregateHeadsTable string
 }
 
 // DefaultStoreConfig returns the default configuration.
 func DefaultStoreConfig() StoreConfig {
 	return StoreConfig{
-		EventsTable:      "events",
-		CheckpointsTable: "projection_checkpoints",
+		EventsTable:         "events",
+		CheckpointsTable:    "projection_checkpoints",
+		AggregateHeadsTable: "aggregate_heads",
 	}
 }
 
@@ -44,7 +48,7 @@ func NewStore(config StoreConfig) *Store {
 }
 
 // Append implements store.EventStore.
-// It automatically assigns aggregate versions starting from the current max version + 1.
+// It automatically assigns aggregate versions using the aggregate_heads table for O(1) lookup.
 // The database constraint on (aggregate_type, aggregate_id, aggregate_version) enforces
 // optimistic concurrency - if another transaction commits between our version check and insert,
 // the insert will fail with a unique constraint violation.
@@ -65,13 +69,13 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 		}
 	}
 
-	// Fetch current max version for this aggregate
+	// Fetch current version from aggregate_heads table
 	var currentVersion sql.NullInt64
 	query := fmt.Sprintf(`
-		SELECT MAX(aggregate_version) 
+		SELECT aggregate_version 
 		FROM %s 
 		WHERE aggregate_type = $1 AND aggregate_id = $2
-	`, s.config.EventsTable)
+	`, s.config.AggregateHeadsTable)
 
 	err := tx.QueryRowContext(ctx, query, firstEvent.AggregateType, firstEvent.AggregateID).Scan(&currentVersion)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -126,6 +130,20 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 			return nil, fmt.Errorf("failed to insert event %d: %w", i, err)
 		}
 		globalPositions[i] = globalPos
+	}
+
+	// Update aggregate_heads with the new version (UPSERT pattern)
+	latestVersion := nextVersion + int64(len(events)) - 1
+	upsertQuery := fmt.Sprintf(`
+		INSERT INTO %s (aggregate_type, aggregate_id, aggregate_version, updated_at)
+		VALUES ($1, $2, $3, NOW())
+		ON CONFLICT (aggregate_type, aggregate_id)
+		DO UPDATE SET aggregate_version = $3, updated_at = NOW()
+	`, s.config.AggregateHeadsTable)
+
+	_, err = tx.ExecContext(ctx, upsertQuery, firstEvent.AggregateType, firstEvent.AggregateID, latestVersion)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update aggregate head: %w", err)
 	}
 
 	return globalPositions, nil

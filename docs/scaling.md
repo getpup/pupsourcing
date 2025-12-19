@@ -208,9 +208,6 @@ func (p *UnsafeProjection) Handle(ctx context.Context, tx es.DBTX, event *es.Per
 ```
 
 See [worker-pool example](../examples/worker-pool/) for details.
-```
-
-See [worker-pool example](../examples/worker-pool/) for details.
 
 ### When to Use Each Pattern
 

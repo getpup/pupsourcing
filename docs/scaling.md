@@ -175,6 +175,41 @@ import "github.com/getpup/pupsourcing/es/projection/runner"
 err := runner.RunProjectionPartitions(ctx, db, store, projection, 4)
 ```
 
+**⚠️ Thread Safety Warning:** When using worker pools, all workers share the same projection instance. If your projection maintains state, it MUST be thread-safe:
+
+```go
+// ✅ Good: Thread-safe using atomic operations
+type SafeProjection struct {
+    count int64
+}
+
+func (p *SafeProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+    atomic.AddInt64(&p.count, 1)  // Thread-safe
+    return nil
+}
+
+// ✅ Good: Stateless (only updates database)
+type StatelessProjection struct{}
+
+func (p *StatelessProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+    _, err := tx.ExecContext(ctx, "INSERT INTO read_model ...")  // Database handles concurrency
+    return err
+}
+
+// ❌ Bad: Not thread-safe
+type UnsafeProjection struct {
+    count int  // Race condition!
+}
+
+func (p *UnsafeProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+    p.count++  // NOT thread-safe!
+    return nil
+}
+```
+
+See [worker-pool example](../examples/worker-pool/) for details.
+```
+
 See [worker-pool example](../examples/worker-pool/) for details.
 
 ### When to Use Each Pattern

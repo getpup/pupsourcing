@@ -81,13 +81,16 @@ type ThreadSafeProjection struct {
     state map[string]int
 }
 
-// OR use atomic operations
+// OR use atomic operations (as shown in this example)
 type AtomicProjection struct {
     count int64  // Use atomic.AddInt64, atomic.LoadInt64
 }
 ```
 
-**Important**: If your projection has non-thread-safe state, create separate instances per worker or use proper synchronization.
+**Important**: If your projection has non-thread-safe state, either:
+1. Use proper synchronization (mutexes, atomic operations, channels)
+2. Make the projection stateless (only update database tables)
+3. Use separate processes with `partitioned` example instead
 
 ## Performance Characteristics
 

@@ -16,6 +16,7 @@ A professional-grade Event Sourcing library for Go, designed with clean architec
 - ✅ **PostgreSQL Adapter**: Production-ready Postgres implementation
 - ✅ **Transaction-Agnostic**: Works with `*sql.DB` and `*sql.Tx`
 - ✅ **Optimistic Concurrency**: Built-in version conflict detection
+- ✅ **Aggregate Stream Reader**: Read events by aggregate with version filtering
 - ✅ **Projection System**: Pull-based event processing with checkpoints
 - ✅ **Horizontal Scaling**: Deterministic hash-based partitioning
 - ✅ **Migration Generation**: SQL migrations via `go generate`
@@ -86,7 +87,31 @@ if err != nil {
 tx.Commit()
 ```
 
-### 3. Process Events with Projections
+### 3. Read Aggregate Streams
+
+```go
+// Read all events for an aggregate
+aggregateID := uuid.MustParse("...")
+events, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Process events in order
+for _, event := range events {
+    fmt.Printf("Event v%d: %s\n", event.AggregateVersion, event.EventType)
+}
+
+// Read from a specific version (e.g., after a snapshot at version 5)
+fromVersion := int64(5)
+recentEvents, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, nil)
+
+// Read a specific version range
+toVersion := int64(10)
+rangeEvents, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, &toVersion)
+```
+
+### 4. Process Events with Projections
 
 ```go
 import (
@@ -332,9 +357,9 @@ Current scope (v1):
 - ✅ Projection processing
 - ✅ Optimistic concurrency
 - ✅ Horizontal scaling support
+- ✅ Read API for aggregate streams
 
 Future considerations:
-- Read API for aggregate streams
 - Snapshots for long-lived aggregates
 - Additional adapters (MySQL, SQLite)
 - Observability hooks

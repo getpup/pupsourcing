@@ -132,7 +132,7 @@ es/
 ### Design Principles
 
 - **Transaction-Agnostic**: You control transaction boundaries
-- **Automatic Versioning**: The library assigns aggregate versions automatically - no need to track versions in your application code
+- **Automatic Versioning**: The library assigns aggregate versions automatically
 - **Optimistic Concurrency**: Version conflicts are detected automatically via database constraints
 - **Pull-Based Projections**: Read events sequentially by global position
 - **Immutable Events**: Events are value objects until persisted
@@ -149,7 +149,7 @@ The library handles optimistic concurrency automatically:
 5. If another transaction commits between the version check and insert, you'll get `store.ErrOptimisticConcurrency`
 6. Simply retry your transaction if you encounter a concurrency error
 
-The `aggregate_heads` table is core event store infrastructure (not a projection or snapshot) that tracks the current version of each aggregate, eliminating expensive MAX() queries and providing efficient version tracking.
+The `aggregate_heads` table tracks the current version of each aggregate, providing O(1) version lookups and eliminating expensive MAX() queries.
 
 ## Projections
 
@@ -270,7 +270,7 @@ CREATE TABLE aggregate_heads (
 );
 ```
 
-This table is **core event store infrastructure** (not a projection or snapshot) that tracks the current version of each aggregate. It provides O(1) version lookups, eliminating expensive MAX() queries on the events table.
+This table tracks the current version of each aggregate, providing O(1) version lookups and eliminating expensive MAX() queries on the events table.
 
 ### Key Design Decisions
 
@@ -278,7 +278,7 @@ This table is **core event store infrastructure** (not a projection or snapshot)
 - **BIGSERIAL for global_position**: Ensures globally ordered event log
 - **UUID for event_id**: Guarantees uniqueness in distributed scenarios
 - **aggregate_version**: Enables optimistic concurrency control
-- **aggregate_heads table**: Core infrastructure for efficient version tracking
+- **aggregate_heads table**: Efficient O(1) version tracking
 
 ## Examples
 

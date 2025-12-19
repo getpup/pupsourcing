@@ -134,6 +134,10 @@ func (r *Runner) Run(ctx context.Context, configs []ProjectionConfig) error {
 // Each partition runs in its own goroutine. All partitions share the same database
 // connection pool but maintain separate checkpoints in the database.
 //
+// IMPORTANT: The projection instance is shared across all workers. If your projection
+// maintains state, it MUST be thread-safe (use sync.Mutex, atomic operations, or channels).
+// Alternatively, the projection can be stateless and only update database tables.
+//
 // Example:
 //
 //	err := runner.RunProjectionPartitions(ctx, db, store, myProjection, 4)

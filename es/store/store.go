@@ -23,8 +23,9 @@ type EventStore interface {
 	// Returns the assigned global positions or an error.
 	//
 	// The store automatically assigns AggregateVersion to each event:
-	// - Fetches the current MAX(aggregate_version) for the aggregate
-	// - Assigns consecutive versions starting from (max + 1)
+	// - Fetches the current version from the aggregate_heads table (O(1) lookup)
+	// - Assigns consecutive versions starting from (current + 1)
+	// - Updates aggregate_heads with the new version
 	// - The database unique constraint on (aggregate_type, aggregate_id, aggregate_version)
 	//   enforces optimistic concurrency
 	//

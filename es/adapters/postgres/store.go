@@ -107,7 +107,7 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 		aggregateVersion := nextVersion + int64(i)
 
 		var globalPos int64
-		err := tx.QueryRowContext(ctx, insertQuery,
+		err = tx.QueryRowContext(ctx, insertQuery,
 			event.AggregateType,
 			event.AggregateID,
 			aggregateVersion,

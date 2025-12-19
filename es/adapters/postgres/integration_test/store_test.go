@@ -370,3 +370,229 @@ func TestReadEvents_Pagination(t *testing.T) {
 		}
 	}
 }
+
+func TestAggregateVersionTracking(t *testing.T) {
+	db := getTestDB(t)
+	defer db.Close()
+
+	setupTestTables(t, db)
+
+	ctx := context.Background()
+	store := postgres.NewStore(postgres.DefaultStoreConfig())
+
+	aggregateID := uuid.New()
+
+	// Append first batch of events
+	events1 := []es.Event{
+		{
+			AggregateType: "TestAggregate",
+			AggregateID:   aggregateID,
+			EventID:       uuid.New(),
+			EventType:     "Event1",
+			EventVersion:  1,
+			Payload:       []byte(`{}`),
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
+		},
+		{
+			AggregateType: "TestAggregate",
+			AggregateID:   aggregateID,
+			EventID:       uuid.New(),
+			EventType:     "Event2",
+			EventVersion:  1,
+			Payload:       []byte(`{}`),
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
+		},
+	}
+
+	tx1, _ := db.BeginTx(ctx, nil)
+	_, err := store.Append(ctx, tx1, events1)
+	if err != nil {
+		t.Fatalf("First append failed: %v", err)
+	}
+	if err := tx1.Commit(); err != nil {
+		t.Fatalf("First commit failed: %v", err)
+	}
+
+	// Verify aggregate_heads has correct version
+	var aggVersion int64
+	err = db.QueryRowContext(ctx, `
+		SELECT aggregate_version 
+		FROM aggregate_heads 
+		WHERE aggregate_type = $1 AND aggregate_id = $2
+	`, "TestAggregate", aggregateID).Scan(&aggVersion)
+	if err != nil {
+		t.Fatalf("Failed to query aggregate_heads: %v", err)
+	}
+	if aggVersion != 2 {
+		t.Errorf("Expected aggregate version 2, got %d", aggVersion)
+	}
+
+	// Append second batch of events
+	events2 := []es.Event{
+		{
+			AggregateType: "TestAggregate",
+			AggregateID:   aggregateID,
+			EventID:       uuid.New(),
+			EventType:     "Event3",
+			EventVersion:  1,
+			Payload:       []byte(`{}`),
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
+		},
+	}
+
+	tx2, _ := db.BeginTx(ctx, nil)
+	_, err = store.Append(ctx, tx2, events2)
+	if err != nil {
+		t.Fatalf("Second append failed: %v", err)
+	}
+	if err := tx2.Commit(); err != nil {
+		t.Fatalf("Second commit failed: %v", err)
+	}
+
+	// Verify aggregate_heads was updated
+	err = db.QueryRowContext(ctx, `
+		SELECT aggregate_version 
+		FROM aggregate_heads 
+		WHERE aggregate_type = $1 AND aggregate_id = $2
+	`, "TestAggregate", aggregateID).Scan(&aggVersion)
+	if err != nil {
+		t.Fatalf("Failed to query aggregate_heads: %v", err)
+	}
+	if aggVersion != 3 {
+		t.Errorf("Expected aggregate version 3, got %d", aggVersion)
+	}
+
+	// Verify events have correct versions
+	rows, err := db.QueryContext(ctx, `
+		SELECT aggregate_version 
+		FROM events 
+		WHERE aggregate_type = $1 AND aggregate_id = $2 
+		ORDER BY aggregate_version
+	`, "TestAggregate", aggregateID)
+	if err != nil {
+		t.Fatalf("Failed to query events: %v", err)
+	}
+	defer rows.Close()
+
+	expectedVersions := []int64{1, 2, 3}
+	var versions []int64
+	for rows.Next() {
+		var version int64
+		if err := rows.Scan(&version); err != nil {
+			t.Fatalf("Failed to scan version: %v", err)
+		}
+		versions = append(versions, version)
+	}
+
+	if len(versions) != len(expectedVersions) {
+		t.Errorf("Expected %d events, got %d", len(expectedVersions), len(versions))
+	}
+
+	for i, expected := range expectedVersions {
+		if i >= len(versions) {
+			break
+		}
+		if versions[i] != expected {
+			t.Errorf("Event %d: expected version %d, got %d", i, expected, versions[i])
+		}
+	}
+}
+
+func TestAggregateVersionTracking_MultipleAggregates(t *testing.T) {
+	db := getTestDB(t)
+	defer db.Close()
+
+	setupTestTables(t, db)
+
+	ctx := context.Background()
+	store := postgres.NewStore(postgres.DefaultStoreConfig())
+
+	// Create events for two different aggregates
+	aggregate1 := uuid.New()
+	aggregate2 := uuid.New()
+
+	events1 := []es.Event{
+		{
+			AggregateType: "TestAggregate",
+			AggregateID:   aggregate1,
+			EventID:       uuid.New(),
+			EventType:     "Event1",
+			EventVersion:  1,
+			Payload:       []byte(`{}`),
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
+		},
+	}
+
+	events2 := []es.Event{
+		{
+			AggregateType: "TestAggregate",
+			AggregateID:   aggregate2,
+			EventID:       uuid.New(),
+			EventType:     "Event1",
+			EventVersion:  1,
+			Payload:       []byte(`{}`),
+			Metadata:      []byte(`{}`),
+			CreatedAt:     time.Now(),
+		},
+	}
+
+	// Append events for both aggregates
+	tx1, _ := db.BeginTx(ctx, nil)
+	_, err := store.Append(ctx, tx1, events1)
+	if err != nil {
+		t.Fatalf("Failed to append events for aggregate1: %v", err)
+	}
+	if err := tx1.Commit(); err != nil {
+		t.Fatalf("Failed to commit aggregate1: %v", err)
+	}
+
+	tx2, _ := db.BeginTx(ctx, nil)
+	_, err = store.Append(ctx, tx2, events2)
+	if err != nil {
+		t.Fatalf("Failed to append events for aggregate2: %v", err)
+	}
+	if err := tx2.Commit(); err != nil {
+		t.Fatalf("Failed to commit aggregate2: %v", err)
+	}
+
+	// Verify both aggregates have version 1
+	var version1, version2 int64
+	err = db.QueryRowContext(ctx, `
+		SELECT aggregate_version 
+		FROM aggregate_heads 
+		WHERE aggregate_type = $1 AND aggregate_id = $2
+	`, "TestAggregate", aggregate1).Scan(&version1)
+	if err != nil {
+		t.Fatalf("Failed to query version for aggregate1: %v", err)
+	}
+
+	err = db.QueryRowContext(ctx, `
+		SELECT aggregate_version 
+		FROM aggregate_heads 
+		WHERE aggregate_type = $1 AND aggregate_id = $2
+	`, "TestAggregate", aggregate2).Scan(&version2)
+	if err != nil {
+		t.Fatalf("Failed to query version for aggregate2: %v", err)
+	}
+
+	if version1 != 1 {
+		t.Errorf("Expected aggregate1 version 1, got %d", version1)
+	}
+	if version2 != 1 {
+		t.Errorf("Expected aggregate2 version 1, got %d", version2)
+	}
+
+	// Verify aggregate_heads has exactly 2 rows
+	var count int
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM aggregate_heads`).Scan(&count)
+	if err != nil {
+		t.Fatalf("Failed to count aggregate_heads: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("Expected 2 rows in aggregate_heads, got %d", count)
+	}
+}

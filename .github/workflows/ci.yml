@@ -83,7 +83,7 @@ jobs:
         POSTGRES_USER: postgres
         POSTGRES_PASSWORD: postgres
         POSTGRES_DB: pupsourcing_test
-      run: go test -p 1 -v -tags=integration ./es/adapters/postgres/integration_test/... ./es/projection/integration_test/...
+      run: go test -p 1 -v -tags=integration ./es/adapters/postgres/integration_test/... ./es/projection/integration_test/... ./es/projection/runner/integration_test/...
 
   lint:
     name: Lint

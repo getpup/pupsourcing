@@ -78,6 +78,7 @@ func setupTestTables(t *testing.T, db *sql.DB) {
 	// Drop existing objects to ensure clean state
 	_, err := db.Exec(`
 		DROP TABLE IF EXISTS projection_checkpoints CASCADE;
+		DROP TABLE IF EXISTS aggregate_heads CASCADE;
 		DROP TABLE IF EXISTS events CASCADE;
 	`)
 	if err != nil {
@@ -86,10 +87,11 @@ func setupTestTables(t *testing.T, db *sql.DB) {
 
 	tmpDir := t.TempDir()
 	config := migrations.Config{
-		OutputFolder:     tmpDir,
-		OutputFilename:   "test.sql",
-		EventsTable:      "events",
-		CheckpointsTable: "projection_checkpoints",
+		OutputFolder:        tmpDir,
+		OutputFilename:      "test.sql",
+		EventsTable:         "events",
+		CheckpointsTable:    "projection_checkpoints",
+		AggregateHeadsTable: "aggregate_heads",
 	}
 
 	if err := migrations.GeneratePostgres(config); err != nil {

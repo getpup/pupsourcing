@@ -214,9 +214,10 @@ func readAggregateStream(ctx context.Context, db *sql.DB, store *mysql.Store, ag
 	}
 
 	log.Printf("Found %d events for aggregate %s:", len(events), aggregateID)
+	//nolint:gocritic // Iterating by value is acceptable for example code
 	for _, event := range events {
 		var payload UserCreated
-		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+		if err = json.Unmarshal(event.Payload, &payload); err != nil {
 			log.Printf("  - Version %d: %s (failed to parse payload)", event.AggregateVersion, event.EventType)
 			continue
 		}

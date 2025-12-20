@@ -141,7 +141,8 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 		aggregateVersion := nextVersion + int64(i)
 
 		// Convert UUIDs to binary for MySQL
-		eventIDBytes, err := event.EventID.MarshalBinary()
+		var eventIDBytes []byte
+		eventIDBytes, err = event.EventID.MarshalBinary()
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal event ID: %w", err)
 		}
@@ -169,7 +170,8 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 			causationID = causationIDBytes
 		}
 
-		result, err := tx.ExecContext(ctx, insertQuery,
+		var result sql.Result
+		result, err = tx.ExecContext(ctx, insertQuery,
 			event.AggregateType,
 			aggregateIDBytes,
 			aggregateVersion,
@@ -198,7 +200,8 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 			return nil, fmt.Errorf("failed to insert event %d: %w", i, err)
 		}
 
-		globalPos, err := result.LastInsertId()
+		var globalPos int64
+		globalPos, err = result.LastInsertId()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get last insert id: %w", err)
 		}

@@ -483,6 +483,8 @@ func loadConfig() Config {
 
 ## Monitoring
 
+For comprehensive observability including logging, tracing, and metrics, see the [Observability Guide](./observability.md).
+
 ### Key Metrics to Track
 
 1. **Projection Lag**

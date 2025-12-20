@@ -7,9 +7,10 @@ Welcome to the pupsourcing documentation! This library provides minimal, product
 1. [Getting Started](./getting-started.md) - Installation, setup, and your first events
 2. [Core Concepts](./core-concepts.md) - Understanding event sourcing with pupsourcing
 3. [Projections Guide](./scaling.md) - Complete guide to projections and scaling
-4. [API Reference](./api-reference.md) - Complete API documentation
-5. [Industry Alignment](./industry-alignment.md) - Comparison with other event sourcing systems
-6. [Deployment Guide](./deployment.md) - Production deployment patterns and operations
+4. [Observability Guide](./observability.md) - Logging, tracing, and metrics
+5. [API Reference](./api-reference.md) - Complete API documentation
+6. [Industry Alignment](./industry-alignment.md) - Comparison with other event sourcing systems
+7. [Deployment Guide](./deployment.md) - Production deployment patterns and operations
 
 ## Quick Links
 
@@ -20,8 +21,8 @@ Welcome to the pupsourcing documentation! This library provides minimal, product
 
 ### For Production Use
 - [Scaling Projections](./scaling.md)
+- [Observability & Monitoring](./observability.md)
 - [Deployment Patterns](./deployment.md)
-- [Monitoring & Operations](./deployment.md#monitoring)
 
 ### For Advanced Users
 - [Partitioning Strategy](./scaling.md#partitioning)
@@ -45,6 +46,7 @@ Complete, runnable examples are available in the [`examples/`](../examples/) dir
 - **[Single Worker](../examples/single-worker/)** - Simplest pattern
 - **[Partitioned](../examples/partitioned/)** - Horizontal scaling across processes
 - **[Multiple Projections](../examples/multiple-projections/)** - Running different projections
+- **[With Logging](../examples/with-logging/)** - Observability and debugging
 - **[Worker Pool](../examples/worker-pool/)** - Partitions in same process
 - **[Scaling](../examples/scaling/)** - Dynamic scaling from 1→N workers
 - **[Stop/Resume](../examples/stop-resume/)** - Checkpoint reliability

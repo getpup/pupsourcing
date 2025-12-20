@@ -25,6 +25,10 @@ type StoreConfig struct {
 
 	// AggregateHeadsTable is the name of the aggregate version tracking table
 	AggregateHeadsTable string
+
+	// Logger is an optional logger for observability.
+	// If nil, logging is disabled (zero overhead).
+	Logger es.Logger
 }
 
 // DefaultStoreConfig returns the default configuration.
@@ -33,6 +37,7 @@ func DefaultStoreConfig() StoreConfig {
 		EventsTable:         "events",
 		CheckpointsTable:    "projection_checkpoints",
 		AggregateHeadsTable: "aggregate_heads",
+		Logger:              nil, // No logging by default
 	}
 }
 
@@ -56,6 +61,10 @@ func NewStore(config StoreConfig) *Store {
 func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]int64, error) {
 	if len(events) == 0 {
 		return nil, store.ErrNoEvents
+	}
+
+	if s.config.Logger != nil {
+		s.config.Logger.Debug(ctx, "append starting", "event_count", len(events))
 	}
 
 	// Validate all events belong to same aggregate
@@ -89,6 +98,14 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 		nextVersion = currentVersion.Int64 + 1
 	} else {
 		nextVersion = 1 // First event for this aggregate
+	}
+
+	if s.config.Logger != nil {
+		s.config.Logger.Debug(ctx, "version calculated",
+			"aggregate_type", firstEvent.AggregateType,
+			"aggregate_id", firstEvent.AggregateID,
+			"current_version", currentVersion.Int64,
+			"next_version", nextVersion)
 	}
 
 	// Insert events with auto-assigned versions and collect global positions
@@ -126,6 +143,12 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 		if err != nil {
 			// Check if this is a unique constraint violation (optimistic concurrency failure)
 			if IsUniqueViolation(err) {
+				if s.config.Logger != nil {
+					s.config.Logger.Error(ctx, "optimistic concurrency conflict",
+						"aggregate_type", event.AggregateType,
+						"aggregate_id", event.AggregateID,
+						"aggregate_version", aggregateVersion)
+				}
 				return nil, store.ErrOptimisticConcurrency
 			}
 			return nil, fmt.Errorf("failed to insert event %d: %w", i, err)
@@ -145,6 +168,15 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 	_, err = tx.ExecContext(ctx, upsertQuery, firstEvent.AggregateType, firstEvent.AggregateID, latestVersion)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update aggregate head: %w", err)
+	}
+
+	if s.config.Logger != nil {
+		s.config.Logger.Info(ctx, "events appended",
+			"aggregate_type", firstEvent.AggregateType,
+			"aggregate_id", firstEvent.AggregateID,
+			"event_count", len(events),
+			"version_range", fmt.Sprintf("%d-%d", nextVersion, latestVersion),
+			"positions", globalPositions)
 	}
 
 	return globalPositions, nil
@@ -185,6 +217,10 @@ func findSubstring(s, substr string) bool {
 
 // ReadEvents implements store.EventReader.
 func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, limit int) ([]es.PersistedEvent, error) {
+	if s.config.Logger != nil {
+		s.config.Logger.Debug(ctx, "reading events", "from_position", fromPosition, "limit", limit)
+	}
+
 	query := fmt.Sprintf(`
 		SELECT 
 			global_position, aggregate_type, aggregate_id, aggregate_version,
@@ -231,11 +267,23 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 		return nil, fmt.Errorf("rows error: %w", err)
 	}
 
+	if s.config.Logger != nil {
+		s.config.Logger.Debug(ctx, "events read", "count", len(events))
+	}
+
 	return events, nil
 }
 
 // ReadAggregateStream implements store.AggregateStreamReader.
 func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID uuid.UUID, fromVersion, toVersion *int64) ([]es.PersistedEvent, error) {
+	if s.config.Logger != nil {
+		s.config.Logger.Debug(ctx, "reading aggregate stream",
+			"aggregate_type", aggregateType,
+			"aggregate_id", aggregateID,
+			"from_version", fromVersion,
+			"to_version", toVersion)
+	}
+
 	// Build the query dynamically based on optional version parameters
 	baseQuery := fmt.Sprintf(`
 		SELECT 
@@ -298,6 +346,13 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	if s.config.Logger != nil {
+		s.config.Logger.Debug(ctx, "aggregate stream read",
+			"aggregate_type", aggregateType,
+			"aggregate_id", aggregateID,
+			"event_count", len(events))
 	}
 
 	return events, nil

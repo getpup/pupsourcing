@@ -8,7 +8,7 @@ import (
 )
 
 // TestNoOpLogger verifies the NoOpLogger doesn't panic.
-func TestNoOpLogger(t *testing.T) {
+func TestNoOpLogger(_ *testing.T) {
 	ctx := context.Background()
 	logger := es.NoOpLogger{}
 
@@ -19,16 +19,16 @@ func TestNoOpLogger(t *testing.T) {
 }
 
 // TestLoggerInterface verifies NoOpLogger implements Logger.
-func TestLoggerInterface(t *testing.T) {
+func TestLoggerInterface(_ *testing.T) {
 	var _ es.Logger = es.NoOpLogger{}
 }
 
 // mockLogger is a simple logger for testing that records calls.
 type mockLogger struct {
+	lastMsg    string
 	debugCalls int
 	infoCalls  int
 	errorCalls int
-	lastMsg    string
 }
 
 func (m *mockLogger) Debug(_ context.Context, msg string, _ ...interface{}) {

@@ -98,7 +98,7 @@ func (r *Runner) Run(ctx context.Context, configs []ProjectionConfig) error {
 		go func(cfg ProjectionConfig) {
 			defer wg.Done()
 
-			processor := projection.NewProcessor(r.db, r.eventReader, cfg.ProcessorConfig)
+			processor := projection.NewProcessor(r.db, r.eventReader, &cfg.ProcessorConfig)
 			err := processor.Run(ctx, cfg.Projection)
 
 			// Only report errors that aren't from context cancellation

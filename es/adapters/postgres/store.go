@@ -17,6 +17,10 @@ import (
 // StoreConfig contains configuration for the Postgres event store.
 // Configuration is immutable after construction.
 type StoreConfig struct {
+	// Logger is an optional logger for observability.
+	// If nil, logging is disabled (zero overhead).
+	Logger es.Logger
+
 	// EventsTable is the name of the events table
 	EventsTable string
 
@@ -25,10 +29,6 @@ type StoreConfig struct {
 
 	// AggregateHeadsTable is the name of the aggregate version tracking table
 	AggregateHeadsTable string
-
-	// Logger is an optional logger for observability.
-	// If nil, logging is disabled (zero overhead).
-	Logger es.Logger
 }
 
 // DefaultStoreConfig returns the default configuration.
@@ -58,6 +58,8 @@ func NewStore(config StoreConfig) *Store {
 // The database constraint on (aggregate_type, aggregate_id, aggregate_version) enforces
 // optimistic concurrency - if another transaction commits between our version check and insert,
 // the insert will fail with a unique constraint violation.
+//
+//nolint:gocyclo // Cyclomatic complexity of 16 is acceptable here - comes from necessary logging and validation checks
 func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]int64, error) {
 	if len(events) == 0 {
 		return nil, store.ErrNoEvents

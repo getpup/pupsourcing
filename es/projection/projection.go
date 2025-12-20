@@ -107,6 +107,10 @@ type Processor struct {
 }
 
 // NewProcessor creates a new projection processor.
+//
+// Note: In v1.1.0, this function was changed to accept *ProcessorConfig (pointer)
+// instead of ProcessorConfig (value) to reduce memory overhead. This is a breaking
+// change - update your code to pass &config instead of config.
 func NewProcessor(db *sql.DB, eventReader store.EventReader, config *ProcessorConfig) *Processor {
 	return &Processor{
 		config:      config,

@@ -114,9 +114,25 @@ func setupTestTables(t *testing.T, db *sql.DB) {
 	statements := strings.Split(string(migrationSQL), ";")
 	for _, stmt := range statements {
 		stmt = strings.TrimSpace(stmt)
-		if stmt == "" || strings.HasPrefix(stmt, "--") {
+		if stmt == "" {
 			continue
 		}
+
+		// Check if this is a comment-only statement
+		lines := strings.Split(stmt, "\n")
+		hasNonComment := false
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" && !strings.HasPrefix(line, "--") {
+				hasNonComment = true
+				break
+			}
+		}
+
+		if !hasNonComment {
+			continue
+		}
+
 		_, err = db.Exec(stmt)
 		if err != nil {
 			t.Fatalf("Failed to execute migration statement: %v\nStatement: %s", err, stmt)

@@ -123,9 +123,25 @@ func setupSchema(db *sql.DB) error {
 	statements := strings.Split(string(migrationSQL), ";")
 	for _, stmt := range statements {
 		stmt = strings.TrimSpace(stmt)
-		if stmt == "" || strings.HasPrefix(stmt, "--") {
+		if stmt == "" {
 			continue
 		}
+
+		// Check if this is a comment-only statement
+		lines := strings.Split(stmt, "\n")
+		hasNonComment := false
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" && !strings.HasPrefix(line, "--") {
+				hasNonComment = true
+				break
+			}
+		}
+
+		if !hasNonComment {
+			continue
+		}
+
 		_, err = db.Exec(stmt)
 		if err != nil {
 			return fmt.Errorf("failed to execute migration statement: %w\nStatement: %s", err, stmt)

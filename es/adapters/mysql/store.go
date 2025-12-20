@@ -385,7 +385,7 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 // ReadAggregateStream implements store.AggregateStreamReader.
 //
 //nolint:gocyclo // Complexity comes from necessary UUID parsing and error handling
-func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID string, fromVersion, toVersion *int64) ([]es.PersistedEvent, error) {
+func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType, aggregateID string, fromVersion, toVersion *int64) ([]es.PersistedEvent, error) {
 	if s.config.Logger != nil {
 		s.config.Logger.Debug(ctx, "reading aggregate stream",
 			"aggregate_type", aggregateType,

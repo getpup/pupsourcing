@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -117,9 +118,18 @@ func setupSchema(db *sql.DB) error {
 		return fmt.Errorf("failed to read migration: %w", err)
 	}
 
-	_, err = db.Exec(string(migrationSQL))
-	if err != nil {
-		return fmt.Errorf("failed to execute migration: %w", err)
+	// MySQL requires executing statements separately
+	// Split by semicolon and execute each statement
+	statements := strings.Split(string(migrationSQL), ";")
+	for _, stmt := range statements {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" || strings.HasPrefix(stmt, "--") {
+			continue
+		}
+		_, err = db.Exec(stmt)
+		if err != nil {
+			return fmt.Errorf("failed to execute migration statement: %w\nStatement: %s", err, stmt)
+		}
 	}
 
 	return nil

@@ -15,8 +15,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/uuid"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/google/uuid"
 
 	"github.com/getpup/pupsourcing/es"
 	"github.com/getpup/pupsourcing/es/adapters/mysql"

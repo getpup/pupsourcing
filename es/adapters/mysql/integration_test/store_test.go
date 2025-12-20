@@ -19,8 +19,8 @@ import (
 	"github.com/getpup/pupsourcing/es"
 	"github.com/getpup/pupsourcing/es/adapters/mysql"
 	"github.com/getpup/pupsourcing/es/migrations"
-	"github.com/google/uuid"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/google/uuid"
 )
 
 func getTestDB(t *testing.T) *sql.DB {

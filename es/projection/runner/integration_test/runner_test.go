@@ -357,11 +357,11 @@ func TestRunnerErrorHandling(t *testing.T) {
 	}
 
 	r := runner.New(db, store)
-	
+
 	// Use small batch size to ensure we save checkpoints before failure
 	config := projection.DefaultProcessorConfig()
 	config.BatchSize = 5
-	
+
 	configs := []runner.ProjectionConfig{
 		{
 			Projection:      proj,

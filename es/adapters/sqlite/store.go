@@ -460,13 +460,13 @@ func parseTimestamp(s string) (time.Time, error) {
 		time.RFC3339,
 		time.RFC3339Nano,
 	}
-	
+
 	for _, format := range formats {
 		t, err := time.Parse(format, s)
 		if err == nil {
 			return t, nil
 		}
 	}
-	
+
 	return time.Time{}, fmt.Errorf("unable to parse timestamp: %s", s)
 }

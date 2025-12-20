@@ -222,26 +222,25 @@ CREATE INDEX IF NOT EXISTS idx_%s_updated
 	)
 }
 
-
 // GenerateMySQL generates a MySQL/MariaDB migration file.
 func GenerateMySQL(config *Config) error {
-// Ensure output folder exists
-if err := os.MkdirAll(config.OutputFolder, 0o755); err != nil {
-return fmt.Errorf("failed to create output folder: %w", err)
-}
+	// Ensure output folder exists
+	if err := os.MkdirAll(config.OutputFolder, 0o755); err != nil {
+		return fmt.Errorf("failed to create output folder: %w", err)
+	}
 
-sql := generateMySQLSQL(config)
+	sql := generateMySQLSQL(config)
 
-outputPath := filepath.Join(config.OutputFolder, config.OutputFilename)
-if err := os.WriteFile(outputPath, []byte(sql), 0o600); err != nil {
-return fmt.Errorf("failed to write migration file: %w", err)
-}
+	outputPath := filepath.Join(config.OutputFolder, config.OutputFilename)
+	if err := os.WriteFile(outputPath, []byte(sql), 0o600); err != nil {
+		return fmt.Errorf("failed to write migration file: %w", err)
+	}
 
-return nil
+	return nil
 }
 
 func generateMySQLSQL(config *Config) string {
-return fmt.Sprintf(`-- Event Sourcing Infrastructure Migration for MySQL/MariaDB
+	return fmt.Sprintf(`-- Event Sourcing Infrastructure Migration for MySQL/MariaDB
 -- Generated: %s
 
 -- Events table stores all domain events in append-only fashion
@@ -303,14 +302,14 @@ CREATE TABLE IF NOT EXISTS %s (
 CREATE INDEX idx_%s_updated 
     ON %s (updated_at);
 `,
-time.Now().Format(time.RFC3339),
-config.EventsTable,
-config.EventsTable, config.EventsTable,
-config.EventsTable, config.EventsTable,
-config.EventsTable, config.EventsTable,
-config.AggregateHeadsTable,
-config.AggregateHeadsTable, config.AggregateHeadsTable,
-config.CheckpointsTable,
-config.CheckpointsTable, config.CheckpointsTable,
-)
+		time.Now().Format(time.RFC3339),
+		config.EventsTable,
+		config.EventsTable, config.EventsTable,
+		config.EventsTable, config.EventsTable,
+		config.EventsTable, config.EventsTable,
+		config.AggregateHeadsTable,
+		config.AggregateHeadsTable, config.AggregateHeadsTable,
+		config.CheckpointsTable,
+		config.CheckpointsTable, config.CheckpointsTable,
+	)
 }

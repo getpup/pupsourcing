@@ -38,9 +38,9 @@ type UserCreated struct {
 
 // ReliableProjection tracks checkpoint position explicitly
 type ReliableProjection struct {
+	lastEventTime time.Time
 	count         int
 	lastPosition  int64
-	lastEventTime time.Time
 }
 
 func (p *ReliableProjection) Name() string {

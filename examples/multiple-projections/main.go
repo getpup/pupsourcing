@@ -109,7 +109,7 @@ func main() {
 	}
 	defer db.Close()
 
-	if err := db.Ping(); err != nil {
+	if err = db.Ping(); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 
@@ -120,7 +120,7 @@ func main() {
 
 	// Append sample events
 	log.Println("Appending sample events...")
-	if err := appendSampleEvents(ctx, db, store); err != nil {
+	if err = appendSampleEvents(ctx, db, store); err != nil {
 		log.Printf("Warning: Failed to append sample events: %v", err)
 	}
 
@@ -195,12 +195,12 @@ func main() {
 func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) error {
 	// Create some users
 	users := []struct {
-		id   uuid.UUID
 		user UserCreated
+		id   uuid.UUID
 	}{
-		{uuid.New(), UserCreated{Email: "alice@example.com", Name: "Alice"}},
-		{uuid.New(), UserCreated{Email: "bob@example.com", Name: "Bob"}},
-		{uuid.New(), UserCreated{Email: "carol@example.com", Name: "Carol"}},
+		{UserCreated{Email: "alice@example.com", Name: "Alice"}, uuid.New()},
+		{UserCreated{Email: "bob@example.com", Name: "Bob"}, uuid.New()},
+		{UserCreated{Email: "carol@example.com", Name: "Carol"}, uuid.New()},
 	}
 
 	for _, u := range users {

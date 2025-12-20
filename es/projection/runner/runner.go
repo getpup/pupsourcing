@@ -55,11 +55,11 @@ func New(db *sql.DB, eventReader store.EventReader) *Runner {
 	}
 }
 
-// Run runs multiple projections concurrently until the context is cancelled.
+// Run runs multiple projections concurrently until the context is canceled.
 // Each projection runs in its own goroutine with its specified configuration.
-// Returns when the context is cancelled or when any projection returns an error.
+// Returns when the context is canceled or when any projection returns an error.
 //
-// If a projection returns an error, all other projections are cancelled and the error
+// If a projection returns an error, all other projections are canceled and the error
 // is returned. This ensures fail-fast behavior.
 //
 // This method is safe to call from CLIs and does not assume single-process ownership.
@@ -114,7 +114,7 @@ func (r *Runner) Run(ctx context.Context, configs []ProjectionConfig) error {
 		close(errChan)
 	}()
 
-	// Return the first error, or nil if context was cancelled
+	// Return the first error, or nil if context was canceled
 	select {
 	case err := <-errChan:
 		if err != nil {

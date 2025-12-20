@@ -631,7 +631,7 @@ var ErrOptimisticConcurrency = errors.New("optimistic concurrency conflict")
 
 **Example:**
 ```go
-_, err := store.Append(ctx, tx, events)
+_, err := store.Append(ctx, tx, es.Exact(currentVersion), events)
 if errors.Is(err, store.ErrOptimisticConcurrency) {
     // Retry transaction
 }

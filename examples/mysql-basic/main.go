@@ -44,6 +44,7 @@ func main() {
 
 	// Test connection
 	if pingErr := db.Ping(); pingErr != nil {
+		//nolint:gocritic // it's fine for examples
 		log.Fatalf("Failed to ping database: %v", pingErr)
 	}
 
@@ -171,6 +172,7 @@ func readAllEvents(ctx context.Context, db *sql.DB, store *mysql.Store) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+	//nolint:errcheck // cleanup
 	defer tx.Rollback()
 
 	events, err := store.ReadEvents(ctx, tx, 0, 100)
@@ -196,6 +198,7 @@ func readAggregateStream(ctx context.Context, db *sql.DB, store *mysql.Store, ag
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+	//nolint:errcheck // cleanup
 	defer tx.Rollback()
 
 	events, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)

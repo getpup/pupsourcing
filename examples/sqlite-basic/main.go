@@ -43,6 +43,7 @@ func main() {
 	// Enable WAL mode for better concurrency
 	_, err = db.Exec("PRAGMA journal_mode = WAL;")
 	if err != nil {
+		//nolint:gocritic // it's fine for examples
 		log.Fatalf("Failed to configure database: %v", err)
 	}
 
@@ -161,6 +162,7 @@ func readAllEvents(ctx context.Context, db *sql.DB, store *sqlite.Store) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+	//nolint:errcheck // cleanup
 	defer tx.Rollback()
 
 	events, err := store.ReadEvents(ctx, tx, 0, 100)

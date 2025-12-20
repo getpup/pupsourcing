@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,9 +109,18 @@ func setupTestTables(t *testing.T, db *sql.DB) {
 		t.Fatalf("Failed to read migration: %v", err)
 	}
 
-	_, err = db.Exec(string(migrationSQL))
-	if err != nil {
-		t.Fatalf("Failed to execute migration: %v", err)
+	// MySQL requires executing statements separately
+	// Split by semicolon and execute each statement
+	statements := strings.Split(string(migrationSQL), ";")
+	for _, stmt := range statements {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" || strings.HasPrefix(stmt, "--") {
+			continue
+		}
+		_, err = db.Exec(stmt)
+		if err != nil {
+			t.Fatalf("Failed to execute migration statement: %v\nStatement: %s", err, stmt)
+		}
 	}
 }
 

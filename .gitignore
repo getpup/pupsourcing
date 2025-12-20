@@ -40,3 +40,15 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+
+# Example binaries
+examples/*/mysql-basic
+examples/*/sqlite-basic
+examples/*/basic
+examples/*/multiple-projections
+examples/*/partitioned
+examples/*/scaling
+examples/*/single-worker
+examples/*/stop-resume
+examples/*/with-logging
+examples/*/worker-pool

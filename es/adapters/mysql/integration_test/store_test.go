@@ -75,13 +75,18 @@ func setupTestTables(t *testing.T, db *sql.DB) {
 	t.Helper()
 
 	// Drop existing objects to ensure clean state
-	_, err := db.Exec(`
-		DROP TABLE IF EXISTS projection_checkpoints;
-		DROP TABLE IF EXISTS aggregate_heads;
-		DROP TABLE IF EXISTS events;
-	`)
+	// MySQL requires separate Exec calls for each statement
+	_, err := db.Exec(`DROP TABLE IF EXISTS projection_checkpoints`)
 	if err != nil {
-		t.Fatalf("Failed to drop tables: %v", err)
+		t.Fatalf("Failed to drop projection_checkpoints table: %v", err)
+	}
+	_, err = db.Exec(`DROP TABLE IF EXISTS aggregate_heads`)
+	if err != nil {
+		t.Fatalf("Failed to drop aggregate_heads table: %v", err)
+	}
+	_, err = db.Exec(`DROP TABLE IF EXISTS events`)
+	if err != nil {
+		t.Fatalf("Failed to drop events table: %v", err)
 	}
 
 	// Generate and execute migration

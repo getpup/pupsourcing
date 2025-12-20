@@ -13,7 +13,10 @@ A professional-grade Event Sourcing library for Go, designed with clean architec
 ## Features
 
 - ✅ **Clean Architecture**: Core interfaces are datastore-agnostic
-- ✅ **PostgreSQL Adapter**: Production-ready Postgres implementation
+- ✅ **Multiple Database Adapters**: 
+  - PostgreSQL (production-ready)
+  - SQLite (embedded, great for testing and small deployments)
+  - MySQL/MariaDB (production-ready)
 - ✅ **Transaction-Agnostic**: Works with `*sql.DB` and `*sql.Tx`
 - ✅ **Optimistic Concurrency**: Built-in version conflict detection
 - ✅ **Aggregate Stream Reader**: Read events by aggregate with version filtering
@@ -21,7 +24,7 @@ A professional-grade Event Sourcing library for Go, designed with clean architec
 - ✅ **Horizontal Scaling**: Deterministic hash-based partitioning
 - ✅ **Migration Generation**: SQL migrations via `go generate`
 - ✅ **Observability Hooks**: Optional logging for debugging and monitoring
-- ✅ **Zero Dependencies**: Uses only Go standard library (plus database driver)
+- ✅ **Minimal Dependencies**: Uses Go standard library plus database driver
 
 ## Installation
 
@@ -29,15 +32,58 @@ A professional-grade Event Sourcing library for Go, designed with clean architec
 go get github.com/getpup/pupsourcing
 ```
 
-For PostgreSQL support:
+Choose your database driver:
 ```bash
+# PostgreSQL
 go get github.com/lib/pq
+
+# SQLite (embedded, no server needed)
+go get modernc.org/sqlite
+
+# MySQL/MariaDB
+go get github.com/go-sql-driver/mysql
 ```
 
 ## Quick Start
 
-### 1. Generate Database Migration
+### 1. Choose Your Database Adapter
 
+pupsourcing supports multiple databases. Choose the one that fits your needs:
+
+**PostgreSQL** (production-ready, full-featured):
+```go
+import "github.com/getpup/pupsourcing/es/adapters/postgres"
+store := postgres.NewStore(postgres.DefaultStoreConfig())
+```
+
+**SQLite** (embedded, great for testing or small deployments):
+```go
+import "github.com/getpup/pupsourcing/es/adapters/sqlite"
+store := sqlite.NewStore(sqlite.DefaultStoreConfig())
+```
+
+**MySQL/MariaDB** (production-ready):
+```go
+import "github.com/getpup/pupsourcing/es/adapters/mysql"
+store := mysql.NewStore(mysql.DefaultStoreConfig())
+```
+
+### 2. Generate Database Migration
+
+Generate migrations for your chosen database:
+
+```go
+// PostgreSQL
+migrations.GeneratePostgres(&config)
+
+// SQLite
+migrations.GenerateSQLite(&config)
+
+// MySQL/MariaDB
+migrations.GenerateMySQL(&config)
+```
+
+Or use the CLI:
 ```bash
 go run github.com/getpup/pupsourcing/cmd/migrate-gen -output migrations
 ```
@@ -49,19 +95,22 @@ Or with `go generate`:
 
 This creates SQL migration files with:
 - Event store table with proper indexes
+- Aggregate heads table for version tracking
 - Projection checkpoint table
 - All necessary constraints
 
-### 2. Append Events
+### 3. Append Events
+
+The API is identical across all adapters:
 
 ```go
 import (
     "github.com/getpup/pupsourcing/es"
-    "github.com/getpup/pupsourcing/es/adapters/postgres"
+    "github.com/getpup/pupsourcing/es/adapters/postgres"  // or sqlite, mysql
     "github.com/google/uuid"
 )
 
-// Create store
+// Create store (same interface for all adapters)
 store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 // Create events
@@ -88,7 +137,7 @@ if err != nil {
 tx.Commit()
 ```
 
-### 3. Read Aggregate Streams
+### 4. Read Aggregate Streams
 
 ```go
 // Read all events for an aggregate
@@ -152,11 +201,70 @@ es/
 ├── store/                # Event store interfaces
 ├── projection/           # Projection processing
 ├── adapters/
-│   └── postgres/         # PostgreSQL implementation
+│   ├── postgres/         # PostgreSQL implementation
+│   ├── sqlite/           # SQLite implementation
+│   └── mysql/            # MySQL/MariaDB implementation
 └── migrations/           # Migration generation
 ```
 
-### Design Principles
+## Database Adapters
+
+### Adapter Comparison
+
+All adapters implement the same interfaces and provide identical functionality. Choose based on your deployment needs:
+
+| Feature | PostgreSQL | SQLite | MySQL/MariaDB |
+|---------|-----------|---------|---------------|
+| **Production Ready** | ✅ | ⚠️ Limited | ✅ |
+| **Server Required** | Yes | No (embedded) | Yes |
+| **Concurrent Writes** | Excellent | Limited (WAL mode) | Excellent |
+| **Best For** | Production systems | Testing, embedded apps | Production systems |
+| **UUID Storage** | Native UUID type | TEXT | BINARY(16) |
+| **JSON Support** | JSONB (indexed) | TEXT | JSON type |
+| **Setup Complexity** | Medium | Minimal | Medium |
+
+### When to Use Each Adapter
+
+**PostgreSQL**: Best for production applications requiring:
+- High concurrency
+- Advanced querying capabilities
+- Strong consistency guarantees
+- Native UUID and JSON support
+
+**SQLite**: Ideal for:
+- Testing and development
+- Embedded applications
+- Small deployments
+- Local-first applications
+- CI/CD pipelines (no server required)
+
+**MySQL/MariaDB**: Good choice for:
+- Existing MySQL infrastructure
+- Production applications
+- High availability setups
+- Standard SQL compatibility
+
+### Switching Adapters
+
+All adapters implement the same interfaces (`store.EventStore`, `store.EventReader`, `store.AggregateStreamReader`), so switching is as simple as changing the import and constructor:
+
+```go
+// PostgreSQL
+import "github.com/getpup/pupsourcing/es/adapters/postgres"
+store := postgres.NewStore(postgres.DefaultStoreConfig())
+
+// SQLite  
+import "github.com/getpup/pupsourcing/es/adapters/sqlite"
+store := sqlite.NewStore(sqlite.DefaultStoreConfig())
+
+// MySQL
+import "github.com/getpup/pupsourcing/es/adapters/mysql"
+store := mysql.NewStore(mysql.DefaultStoreConfig())
+```
+
+No other code changes required!
+
+## Architecture
 
 - **Transaction-Agnostic**: You control transaction boundaries
 - **Automatic Versioning**: The library assigns aggregate versions automatically

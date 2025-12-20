@@ -4,9 +4,66 @@ This directory contains comprehensive, runnable examples demonstrating how to us
 
 ## Overview
 
-Each example is self-contained and demonstrates a specific pattern or use case. Start with `single-worker` for the basics, then explore more advanced patterns.
+Each example is self-contained and demonstrates a specific pattern or use case. Start with the database-specific examples to understand the basics, then explore more advanced patterns with projections and scaling.
 
-## Examples
+## Database Examples
+
+### [Basic](./basic/)
+**Database:** PostgreSQL  
+**Difficulty:** Beginner  
+**Best for:** Understanding the basics with PostgreSQL
+
+Demonstrates basic event appending and reading with PostgreSQL.
+
+**Prerequisites:**
+```bash
+docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=pupsourcing_example postgres:16
+```
+
+**Run it:**
+```bash
+cd basic
+go run main.go
+```
+
+### [SQLite Basic](./sqlite-basic/)
+**Database:** SQLite  
+**Difficulty:** Beginner  
+**Best for:** Testing, embedded applications, no server required
+
+Demonstrates event sourcing with SQLite (embedded database).
+
+**What you'll learn:**
+- Using SQLite adapter (no server needed)
+- Perfect for testing and CI/CD
+- Local-first applications
+- Migration generation for SQLite
+
+**Run it:**
+```bash
+cd sqlite-basic
+go run main.go
+```
+
+### [MySQL Basic](./mysql-basic/)
+**Database:** MySQL/MariaDB  
+**Difficulty:** Beginner  
+**Best for:** MySQL infrastructure
+
+Demonstrates event sourcing with MySQL/MariaDB.
+
+**Prerequisites:**
+```bash
+docker run -d -p 3306:3306 -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=pupsourcing_example mysql:8
+```
+
+**Run it:**
+```bash
+cd mysql-basic
+go run main.go
+```
+
+## Projection Examples
 
 ### 1. [Single Worker](./single-worker/)
 **Difficulty:** Beginner  

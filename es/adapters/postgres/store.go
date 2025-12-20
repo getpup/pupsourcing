@@ -103,11 +103,19 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 	}
 
 	if s.config.Logger != nil {
-		s.config.Logger.Debug(ctx, "version calculated",
-			"aggregate_type", firstEvent.AggregateType,
-			"aggregate_id", firstEvent.AggregateID,
-			"current_version", currentVersion.Int64,
-			"next_version", nextVersion)
+		if currentVersion.Valid {
+			s.config.Logger.Debug(ctx, "version calculated",
+				"aggregate_type", firstEvent.AggregateType,
+				"aggregate_id", firstEvent.AggregateID,
+				"current_version", currentVersion.Int64,
+				"next_version", nextVersion)
+		} else {
+			s.config.Logger.Debug(ctx, "version calculated",
+				"aggregate_type", firstEvent.AggregateType,
+				"aggregate_id", firstEvent.AggregateID,
+				"current_version", "none",
+				"next_version", nextVersion)
+		}
 	}
 
 	// Insert events with auto-assigned versions and collect global positions

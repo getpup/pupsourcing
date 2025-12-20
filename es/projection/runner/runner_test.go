@@ -20,9 +20,9 @@ type mockEventReader struct {
 
 func (m *mockEventReader) ReadEvents(_ context.Context, _ es.DBTX, fromPosition int64, limit int) ([]es.PersistedEvent, error) {
 	var result []es.PersistedEvent
-	for _, event := range m.events {
-		if event.GlobalPosition > fromPosition {
-			result = append(result, event)
+	for i := range m.events {
+		if m.events[i].GlobalPosition > fromPosition {
+			result = append(result, m.events[i])
 			if len(result) >= limit {
 				break
 			}

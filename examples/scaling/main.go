@@ -95,11 +95,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
 
-	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+	if pingErr := db.Ping(); pingErr != nil {
+		log.Fatalf("Failed to ping database: %v", pingErr)
 	}
+	defer db.Close()
 
 	ctx := context.Background()
 
@@ -109,8 +109,8 @@ func main() {
 	// Optionally append events
 	if *appendEvents {
 		log.Println("Appending sample events...")
-		if err := appendSampleEvents(ctx, db, store, 20); err != nil {
-			log.Fatalf("Failed to append sample events: %v", err)
+		if appendErr := appendSampleEvents(ctx, db, store, 20); appendErr != nil {
+			log.Fatalf("Failed to append sample events: %v", appendErr)
 		}
 		log.Println("Sample events appended. Start workers now.")
 		return

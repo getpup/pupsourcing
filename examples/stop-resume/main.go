@@ -175,7 +175,6 @@ func handleProcessMode(ctx context.Context, db *sql.DB, store *postgres.Store) {
 
 	// Graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -188,11 +187,13 @@ func handleProcessMode(ctx context.Context, db *sql.DB, store *postgres.Store) {
 		log.Println("═══════════════════════════════════════════════════════")
 		cancel()
 	}()
+	defer cancel()
 
 	// Run projection
 	log.Println("Processing events... (Press Ctrl+C to stop)")
 	err := processor.Run(ctx, proj)
 	if err != nil && err != context.Canceled {
+		cancel()
 		log.Fatalf("Projection error: %v", err)
 	}
 
@@ -231,11 +232,12 @@ func handleStatusMode(ctx context.Context, db *sql.DB) {
 	log.Printf("Current checkpoint position: %d", checkpoint)
 	log.Printf("Total events in store: %d", totalEvents)
 
-	if checkpoint == 0 {
+	switch {
+	case checkpoint == 0:
 		log.Printf("Status: Not started (will process all %d events)", totalEvents)
-	} else if checkpoint >= totalEvents {
+	case checkpoint >= totalEvents:
 		log.Printf("Status: Caught up (all events processed)")
-	} else {
+	default:
 		lag := totalEvents - checkpoint
 		log.Printf("Status: Behind by %d events (%.1f%% complete)",
 			lag, float64(checkpoint)/float64(totalEvents)*100)

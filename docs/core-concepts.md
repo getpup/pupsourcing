@@ -6,53 +6,90 @@ This guide explains the fundamental concepts of event sourcing with pupsourcing.
 
 ### What is Event Sourcing?
 
-Event sourcing is a pattern where state changes are stored as a sequence of events rather than storing only the current state.
+Event sourcing is a pattern where state changes are stored as a sequence of events rather than storing only the current state. Instead of updating records in place (CRUD), you append immutable events that describe what happened.
 
-**Traditional approach:**
+**Why does this matter?**
+
+In traditional databases, you only see the current state. If a user's email changed from alice@example.com to alice@newdomain.com, you lose the history of that change unless you build custom audit tables. With event sourcing, every state change is captured as an event, giving you a complete history by default.
+
+**Traditional approach (CRUD):**
 ```
 User table:
 | id | email | name | status |
 | 1  | alice@example.com | Alice | active |
+
+# UPDATE user SET email='new@email.com' WHERE id=1
+# Old email is lost forever
 ```
 
 **Event sourcing approach:**
 ```
-Events:
+Events table (append-only):
 1. UserCreated(id=1, email=alice@example.com, name=Alice)
 2. EmailVerified(id=1)
-3. NameChanged(id=1, name=Alice Smith)
-4. UserDeactivated(id=1)
+3. EmailChanged(id=1, old=alice@example.com, new=alice@newdomain.com)
+4. NameChanged(id=1, old=Alice, new=Alice Smith)
+5. UserDeactivated(id=1, reason="account closed")
 
-Current state = Apply all events in order
+Current state = Apply events 1-5 in order
+State at time T = Apply events up to time T
 ```
 
 ### Benefits
 
-1. **Complete Audit Trail** - Know exactly what happened and when
-2. **Time Travel** - Reconstruct state at any point in history
-3. **Event Replay** - Build new read models from existing events
-4. **Debugging** - See exactly what led to current state
-5. **Business Insights** - Analyze historical data
+1. **Complete Audit Trail** - Know exactly what happened, when it happened, who did it, and why. Essential for compliance, debugging, and business analysis.
+
+2. **Time Travel** - Reconstruct state at any point in history. Useful for debugging production issues: "What did this order look like yesterday before the bug?"
+
+3. **Event Replay** - Build new read models from existing events. Need a new report? Just replay the events through a new projection. No data migration needed.
+
+4. **Debugging** - See exactly what led to current state. Instead of asking "how did we get here?", you can see the exact sequence of events.
+
+5. **Business Insights** - Analyze historical data. How many users changed their email in the last month? Just query the events.
 
 ### Trade-offs
 
-✅ **Pros:**
-- Complete history
-- Flexible read models
-- Natural audit log
-- Temporal queries
+**✅ Pros:**
+- **Complete history**: Every state change is preserved
+- **Flexible read models**: Create new views of data without migrations
+- **Natural audit log**: Compliance requirements met by default
+- **Temporal queries**: Answer "what if" questions about the past
+- **Debugging**: Replay production events in development
+- **Business intelligence**: Rich data for analytics
 
-❌ **Cons:**
-- More complex than CRUD
-- Requires idempotent operations
-- Eventually consistent reads
-- Storage grows with events
+**❌ Cons:**
+- **Complexity**: More complex than simple CRUD operations
+- **Learning curve**: Team needs to understand ES concepts
+- **Idempotency**: Projections must handle duplicate events
+- **Eventual consistency**: Read models lag behind write side
+- **Storage**: Events accumulate over time (mitigated by snapshots)
+- **Query complexity**: Can't simply JOIN tables - need projections
+- **Schema evolution**: Events are immutable, must handle old versions
+
+**When to use event sourcing:**
+- Systems requiring full audit trails (financial, healthcare, legal)
+- Domains with complex business logic
+- Applications needing temporal queries
+- Microservices needing to publish domain events
+- Systems requiring multiple read models from same data
+
+**When NOT to use event sourcing:**
+- Simple CRUD applications
+- Prototypes or MVPs (unless ES is core requirement)
+- Teams unfamiliar with ES and no time to learn
+- Systems with strict low-latency requirements everywhere
 
 ## Core Components
 
 ### 1. Events
 
-Events are immutable facts that have occurred in your system.
+Events are immutable facts that have occurred in your system. They represent something that happened in the past and cannot be changed or deleted.
+
+**Key principles:**
+- Events are named in past tense: `UserCreated`, `OrderPlaced`, `PaymentProcessed`
+- Events are immutable once persisted
+- Events contain all data needed to understand what happened
+- Events should be domain-focused, not technical
 
 ```go
 type Event struct {
@@ -63,7 +100,7 @@ type Event struct {
     EventType     string          // Type of event (e.g., "UserCreated")
     
     // Versioning
-    EventVersion      int         // Schema version of this event type
+    EventVersion      int         // Schema version of this event type (for evolution)
     AggregateVersion  int64       // Version AFTER this event (assigned by store)
     GlobalPosition    int64       // Position in global log (assigned by store)
     
@@ -71,10 +108,10 @@ type Event struct {
     Payload    []byte             // Event data (typically JSON)
     Metadata   []byte             // Additional metadata (typically JSON)
     
-    // Tracing
-    TraceID       uuid.NullUUID   // Distributed tracing
-    CorrelationID uuid.NullUUID   // Link related events
-    CausationID   uuid.NullUUID   // What caused this event
+    // Tracing (optional but recommended for distributed systems)
+    TraceID       uuid.NullUUID   // Distributed tracing ID
+    CorrelationID uuid.NullUUID   // Link related events across aggregates
+    CausationID   uuid.NullUUID   // ID of event/command that caused this event
     
     // Timestamp
     CreatedAt time.Time           // When event occurred
@@ -83,12 +120,58 @@ type Event struct {
 
 #### Event vs. PersistedEvent
 
-- **Event**: Before persistence (you create this)
-- **PersistedEvent**: After persistence (includes `GlobalPosition` and `AggregateVersion`)
+**Event**: What you create before appending to the store. You don't set `AggregateVersion` or `GlobalPosition` - the store assigns these.
+
+**PersistedEvent**: What you get back after the event is stored or when reading from the store. Includes the assigned `GlobalPosition` and `AggregateVersion`.
+
+**Why the distinction?** Events don't have identity until they're persisted. A PersistedEvent has a position in the global event log and knows its version within the aggregate.
+
+#### Event Design Best Practices
+
+**✅ Good event names:**
+- `OrderPlaced` (not `PlaceOrder` - it already happened)
+- `PaymentCompleted` (not `Payment` - be specific)
+- `UserEmailChanged` (not `UserUpdated` - what exactly changed?)
+
+**❌ Bad event names:**
+- `CreateUser` (command, not event)
+- `Update` (too generic)
+- `UserEvent` (meaningless)
+
+**Event payload guidelines:**
+- Include all data needed to understand the event
+- Don't include computed values that can be derived
+- Use JSON for flexibility and readability
+- Version your event schemas (EventVersion field)
+
+Example:
+```go
+// ✅ Good: Includes all relevant data
+{
+    "user_id": "123",
+    "old_email": "alice@old.com",
+    "new_email": "alice@new.com",
+    "changed_by": "user_456",
+    "reason": "user requested"
+}
+
+// ❌ Bad: Missing context
+{
+    "email": "alice@new.com"
+}
+```
 
 ### 2. Aggregates
 
-An aggregate is a cluster of related domain objects that are treated as a unit for data changes.
+An aggregate is a cluster of related domain objects that are treated as a unit for data changes. In event sourcing, an aggregate is the primary unit of consistency.
+
+**Core principles:**
+- An aggregate is a consistency boundary
+- All events for an aggregate are processed in order
+- Aggregates are identified by `AggregateType` + `AggregateID`
+- Events within an aggregate are strictly ordered by `AggregateVersion`
+
+**Example: User Aggregate**
 
 ```go
 // User aggregate - spans multiple events

@@ -22,7 +22,7 @@ type Event struct {
     // Identity
     EventID       uuid.UUID      // Unique event identifier
     AggregateType string          // Type of aggregate (e.g., "User", "Order")
-    AggregateID   uuid.UUID      // Aggregate instance identifier
+    AggregateID   string          // Aggregate instance identifier (UUID string, email, or any identifier)
     EventType     string          // Type of event (e.g., "UserCreated")
     
     // Versioning
@@ -43,6 +43,50 @@ type Event struct {
 ```
 
 **Note:** `AggregateVersion` and `GlobalPosition` are assigned by the store during `Append`.
+
+### es.ExpectedVersion
+
+Controls optimistic concurrency for aggregate updates.
+
+```go
+type ExpectedVersion struct {
+    // internal value
+}
+
+// Constructors
+func Any() ExpectedVersion         // No version check
+func NoStream() ExpectedVersion    // Aggregate must not exist
+func Exact(version int64) ExpectedVersion  // Aggregate must be at specific version
+```
+
+**Usage:**
+
+- **Any()**: Skip version validation. Use when you don't need concurrency control.
+- **NoStream()**: Enforce that the aggregate doesn't exist. Use for aggregate creation and uniqueness enforcement.
+- **Exact(N)**: Enforce that the aggregate is at version N. Use for normal command handling with optimistic concurrency.
+
+**Examples:**
+
+```go
+// Creating a new aggregate
+_, err := store.Append(ctx, tx, es.NoStream(), []es.Event{event})
+
+// Updating an existing aggregate at version 5
+_, err := store.Append(ctx, tx, es.Exact(5), []es.Event{event})
+
+// No concurrency check
+_, err := store.Append(ctx, tx, es.Any(), []es.Event{event})
+
+// Uniqueness enforcement via reservation aggregate
+email := "user@example.com"
+reservationEvent := es.Event{
+    AggregateType: "EmailReservation",
+    AggregateID:   email,  // Use email as aggregate ID
+    // ... other fields
+}
+_, err := store.Append(ctx, tx, es.NoStream(), []es.Event{reservationEvent})
+// Second attempt with same email will fail with ErrOptimisticConcurrency
+```
 
 ### es.PersistedEvent
 
@@ -130,21 +174,22 @@ Interface for appending events.
 
 ```go
 type EventStore interface {
-    Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]int64, error)
+    Append(ctx context.Context, tx es.DBTX, expectedVersion es.ExpectedVersion, events []es.Event) ([]int64, error)
 }
 ```
 
 #### Append
 
-Atomically appends events within a transaction.
+Atomically appends events within a transaction with optimistic concurrency control.
 
 ```go
-func (s *EventStore) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]int64, error)
+func (s *EventStore) Append(ctx context.Context, tx es.DBTX, expectedVersion es.ExpectedVersion, events []es.Event) ([]int64, error)
 ```
 
 **Parameters:**
 - `ctx`: Context for cancellation
 - `tx`: Database transaction (you control transaction boundaries)
+- `expectedVersion`: Expected aggregate version (Any, NoStream, or Exact)
 - `events`: Events to append (must all be for the same aggregate)
 
 **Returns:**
@@ -152,7 +197,7 @@ func (s *EventStore) Append(ctx context.Context, tx es.DBTX, events []es.Event) 
 - `error`: Error if any (including `ErrOptimisticConcurrency`)
 
 **Errors:**
-- `store.ErrOptimisticConcurrency`: Version conflict (another transaction committed)
+- `store.ErrOptimisticConcurrency`: Version conflict or expectation mismatch
 - `store.ErrNoEvents`: Empty events slice
 
 **Example:**
@@ -160,9 +205,17 @@ func (s *EventStore) Append(ctx context.Context, tx es.DBTX, events []es.Event) 
 tx, _ := db.BeginTx(ctx, nil)
 defer tx.Rollback()
 
-positions, err := store.Append(ctx, tx, events)
+// Create a new aggregate
+positions, err := store.Append(ctx, tx, es.NoStream(), events)
 if errors.Is(err, store.ErrOptimisticConcurrency) {
-    // Retry logic
+    // Aggregate already exists
+}
+
+// Update existing aggregate at version 3
+positions, err := store.Append(ctx, tx, es.Exact(3), events)
+if errors.Is(err, store.ErrOptimisticConcurrency) {
+    // Version mismatch - another transaction updated the aggregate
+    // Reload aggregate state and retry
 }
 
 tx.Commit()
@@ -203,7 +256,7 @@ Interface for reading events for a specific aggregate.
 ```go
 type AggregateStreamReader interface {
     ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, 
-                       aggregateID uuid.UUID, fromVersion, toVersion *int64) ([]es.PersistedEvent, error)
+                       aggregateID string, fromVersion, toVersion *int64) ([]es.PersistedEvent, error)
 }
 ```
 
@@ -213,13 +266,13 @@ Reads all events for an aggregate, optionally filtered by version range.
 
 ```go
 func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, 
-                                   aggregateType string, aggregateID uuid.UUID,
+                                   aggregateType string, aggregateID string,
                                    fromVersion, toVersion *int64) ([]es.PersistedEvent, error)
 ```
 
 **Parameters:**
 - `aggregateType`: Type of aggregate (e.g., "User")
-- `aggregateID`: Aggregate instance ID
+- `aggregateID`: Aggregate instance ID (string: UUID, email, or any identifier)
 - `fromVersion`: Optional minimum version (inclusive). Pass `nil` for all.
 - `toVersion`: Optional maximum version (inclusive). Pass `nil` for all.
 
@@ -229,16 +282,20 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX,
 
 **Examples:**
 ```go
-// Read all events
-events, _ := store.ReadAggregateStream(ctx, tx, "User", id, nil, nil)
+// Read all events for UUID-based aggregate
+userID := uuid.New().String()
+events, _ := store.ReadAggregateStream(ctx, tx, "User", userID, nil, nil)
 
 // Read from version 5 onwards
 from := int64(5)
-events, _ := store.ReadAggregateStream(ctx, tx, "User", id, &from, nil)
+events, _ := store.ReadAggregateStream(ctx, tx, "User", userID, &from, nil)
 
 // Read specific range
 to := int64(10)
-events, _ := store.ReadAggregateStream(ctx, tx, "User", id, &from, &to)
+events, _ := store.ReadAggregateStream(ctx, tx, "User", userID, &from, &to)
+
+// Read reservation aggregate by email
+events, _ := store.ReadAggregateStream(ctx, tx, "EmailReservation", "user@example.com", nil, nil)
 ```
 
 ## Projections

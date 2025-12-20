@@ -36,7 +36,7 @@ func TestGeneratePostgres(t *testing.T) {
 		"CREATE TABLE IF NOT EXISTS events",
 		"global_position BIGSERIAL PRIMARY KEY",
 		"aggregate_type TEXT NOT NULL",
-		"aggregate_id UUID NOT NULL",
+		"aggregate_id TEXT NOT NULL",
 		"aggregate_version BIGINT NOT NULL",
 		"event_id UUID NOT NULL UNIQUE",
 		"event_type TEXT NOT NULL",

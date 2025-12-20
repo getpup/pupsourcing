@@ -4,15 +4,15 @@ This document explains pupsourcing concepts in terms of other popular event sour
 
 ## Quick Reference
 
-| pupsourcing | Kafka | EventStoreDB | Axon Framework | Watermill |
-|-------------|-------|--------------|----------------|-----------|
-| Event | Message | Event | Event | Message |
-| GlobalPosition | Offset | Position | Sequence Number | Offset |
-| Projection | Consumer | Subscription | Tracking Event Processor | Handler |
-| PartitionKey | Partition | - | Segment | - |
-| Checkpoint | Consumer Offset | Checkpoint | Token | Offset |
-| AggregateID | Key | Stream ID | Aggregate Identifier | - |
-| EventStore | Topic | Stream | Event Store | Publisher |
+| pupsourcing | Kafka | EventStoreDB | Axon Framework |
+|-------------|-------|--------------|----------------|
+| Event | Message | Event | Event |
+| GlobalPosition | Offset | Position | Sequence Number |
+| Projection | Consumer | Subscription | Tracking Event Processor |
+| PartitionKey | Partition | - | Segment |
+| Checkpoint | Consumer Offset | Checkpoint | Token |
+| AggregateID | Key | Stream ID | Aggregate Identifier |
+| EventStore | Topic | Stream | Event Store |
 
 ## Apache Kafka
 
@@ -182,86 +182,6 @@ From Axon Framework to pupsourcing:
 4. **Segment** → `PartitionKey`/`TotalPartitions`
 5. **Event Store** → pupsourcing event store
 
-## Watermill (Go)
-
-### Conceptual Mapping
-
-Watermill and pupsourcing have significant overlap:
-
-| Watermill | pupsourcing |
-|-----------|-------------|
-| Message | Event |
-| Publisher | Event store (Append) |
-| Subscriber | Projection |
-| Router | Multiple projections |
-| Middleware | Custom logic |
-| Handler | Projection.Handle() |
-
-### Similarities
-
-Both are Go libraries with similar goals but different approaches.
-
-```go
-// Watermill handler
-func (h *Handler) Process(msg *message.Message) error {
-    // Process message
-    return nil
-}
-
-// pupsourcing projection
-func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
-    // Process event
-    return nil
-}
-```
-
-### Key Differences
-
-| Aspect | Watermill | pupsourcing |
-|--------|-----------|-------------|
-| **Focus** | Message passing | Event sourcing |
-| **Transport** | Pluggable (Kafka, AMQP, etc.) | PostgreSQL only |
-| **Storage** | External | Integrated |
-| **Pub/Sub** | Yes | No (pull-based) |
-| **CQRS** | Optional component | Core design |
-
-### When to Use Each
-
-**Use Watermill when:**
-- Need multiple message transports
-- Building microservices with async messaging
-- Want pub/sub pattern
-- Integration with existing message brokers
-
-**Use pupsourcing when:**
-- Event sourcing is primary pattern
-- Want PostgreSQL-based solution
-- Don't need multiple transports
-- Prefer pull-based projections
-
-### Can You Use Both?
-
-Yes! Combine them:
-
-```go
-// Use pupsourcing for event sourcing
-store := postgres.NewStore(config)
-store.Append(ctx, tx, events)
-
-// Use Watermill for cross-service messaging
-publisher := kafka.NewPublisher(config)
-
-// Bridge: Projection that publishes to Watermill
-type BridgeProjection struct {
-    publisher message.Publisher
-}
-
-func (p *BridgeProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
-    msg := message.NewMessage(event.EventID.String(), event.Payload)
-    return p.publisher.Publish(event.EventType, msg)
-}
-```
-
 ## Marten (C#/.NET)
 
 ### Conceptual Mapping
@@ -316,7 +236,6 @@ func (p *UserProjection) Handle(ctx context.Context, tx es.DBTX, event *es.Persi
 | **Kafka** | Distributed streaming platform |
 | **EventStoreDB** | Purpose-built event store |
 | **Axon** | Full CQRS/ES framework |
-| **Watermill** | Flexible message routing |
 | **Marten** | PostgreSQL document + events |
 | **pupsourcing** | Minimal ES library |
 
@@ -330,7 +249,6 @@ High Features, High Complexity
 │
 │  Marten
 │  EventStoreDB (basic)
-│  Watermill
 │
 ↓  pupsourcing
 Low Features, Low Complexity

@@ -6,11 +6,12 @@ Welcome to the pupsourcing documentation! This library provides minimal, product
 
 1. [Getting Started](./getting-started.md) - Installation, setup, and your first events
 2. [Core Concepts](./core-concepts.md) - Understanding event sourcing with pupsourcing
-3. [Projections Guide](./scaling.md) - Complete guide to projections and scaling
-4. [Observability Guide](./observability.md) - Logging, tracing, and metrics
-5. [API Reference](./api-reference.md) - Complete API documentation
-6. [Industry Alignment](./industry-alignment.md) - Comparison with other event sourcing systems
-7. [Deployment Guide](./deployment.md) - Production deployment patterns and operations
+3. [Database Adapters](./adapters.md) - PostgreSQL, SQLite, and MySQL/MariaDB adapters
+4. [Projections Guide](./scaling.md) - Complete guide to projections and scaling
+5. [Observability Guide](./observability.md) - Logging, tracing, and metrics
+6. [API Reference](./api-reference.md) - Complete API documentation
+7. [Industry Alignment](./industry-alignment.md) - Comparison with other event sourcing systems
+8. [Deployment Guide](./deployment.md) - Production deployment patterns and operations
 
 ## Quick Links
 
@@ -18,8 +19,10 @@ Welcome to the pupsourcing documentation! This library provides minimal, product
 - [Quick Start Guide](./getting-started.md#quick-start)
 - [Simple Examples](../examples/single-worker/)
 - [Core Concepts](./core-concepts.md)
+- [Database Adapters](./adapters.md)
 
 ### For Production Use
+- [Database Adapter Selection](./adapters.md#adapter-comparison)
 - [Scaling Projections](./scaling.md)
 - [Observability & Monitoring](./observability.md)
 - [Deployment Patterns](./deployment.md)

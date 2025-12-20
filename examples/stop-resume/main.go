@@ -13,6 +13,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -85,7 +86,8 @@ func main() {
 	}
 	defer db.Close()
 
-	if err := db.Ping(); err != nil {
+	if err = db.Ping(); err != nil {
+		//nolint:gocritic // it's just an example code
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 
@@ -192,8 +194,9 @@ func handleProcessMode(ctx context.Context, db *sql.DB, store *postgres.Store) {
 	// Run projection
 	log.Println("Processing events... (Press Ctrl+C to stop)")
 	err := processor.Run(ctx, proj)
-	if err != nil && err != context.Canceled {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		cancel()
+		//nolint:gocritic // it's just an example code
 		log.Fatalf("Projection error: %v", err)
 	}
 

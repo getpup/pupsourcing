@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -110,6 +111,7 @@ func main() {
 	defer db.Close()
 
 	if err = db.Ping(); err != nil {
+		//nolint:gocritic // it's just an example code
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 
@@ -183,7 +185,8 @@ func main() {
 	log.Println("Starting multiple projections...")
 	log.Println("Press Ctrl+C to stop")
 	err = runner.RunMultipleProjections(ctx, db, store, configs)
-	if err != nil && err != context.Canceled {
+	if err != nil && !errors.Is(err, context.Canceled) {
+		//nolint:gocritic // it's just an example code
 		log.Fatalf("Runner error: %v", err)
 	}
 

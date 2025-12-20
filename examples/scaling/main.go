@@ -110,6 +110,7 @@ func main() {
 	if *appendEvents {
 		log.Println("Appending sample events...")
 		if appendErr := appendSampleEvents(ctx, db, store, 20); appendErr != nil {
+			//nolint:gocritic // it's just an example code
 			log.Fatalf("Failed to append sample events: %v", appendErr)
 		}
 		log.Println("Sample events appended. Start workers now.")

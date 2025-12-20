@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -105,7 +106,8 @@ func main() {
 	log.Println("Starting single-worker projection...")
 	log.Println("Press Ctrl+C to stop")
 	err = processor.Run(ctx, proj)
-	if err != nil && err != context.Canceled {
+	if err != nil && !errors.Is(err, context.Canceled) {
+		//nolint:gocritic // it's just an example code
 		log.Fatalf("Projection error: %v", err)
 	}
 

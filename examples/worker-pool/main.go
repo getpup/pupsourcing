@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -116,7 +117,8 @@ func main() {
 	log.Println("Press Ctrl+C to stop")
 
 	err = runner.RunProjectionPartitions(ctx, db, store, proj, *numWorkers)
-	if err != nil && err != context.Canceled {
+	if err != nil && !errors.Is(err, context.Canceled) {
+		//nolint:gocritic // it's just an example code
 		log.Fatalf("Runner error: %v", err)
 	}
 

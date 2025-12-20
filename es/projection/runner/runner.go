@@ -127,6 +127,16 @@ func (r *Runner) Run(ctx context.Context, configs []ProjectionConfig) error {
 	}
 }
 
+// partitionedProjection wraps a projection to give it a unique name per partition
+type partitionedProjection struct {
+	projection.Projection
+	partitionKey int
+}
+
+func (p *partitionedProjection) Name() string {
+	return fmt.Sprintf("%s_partition_%d", p.Projection.Name(), p.partitionKey)
+}
+
 // RunProjectionPartitions is a helper that runs a single projection with N partitions
 // in the same process. This is useful for simple horizontal scaling without needing
 // to deploy multiple processes.
@@ -161,8 +171,14 @@ func RunProjectionPartitions(
 		config.PartitionKey = i
 		config.TotalPartitions = totalPartitions
 
+		// Wrap projection to give it a unique name per partition
+		partProj := &partitionedProjection{
+			Projection:   proj,
+			partitionKey: i,
+		}
+
 		configs[i] = ProjectionConfig{
-			Projection:      proj,
+			Projection:      partProj,
 			ProcessorConfig: config,
 		}
 	}

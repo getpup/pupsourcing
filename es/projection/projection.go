@@ -201,7 +201,7 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 		event := &events[i]
 		// Apply partition filter
 		if !p.config.PartitionStrategy.ShouldProcess(
-			event.AggregateID.String(),
+			event.AggregateID,
 			p.config.PartitionKey,
 			p.config.TotalPartitions,
 		) {

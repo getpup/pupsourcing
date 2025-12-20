@@ -5,8 +5,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/google/uuid"
-
 	"github.com/getpup/pupsourcing/es"
 )
 
@@ -24,17 +22,24 @@ type EventStore interface {
 	// Events must all belong to the same aggregate instance.
 	// Returns the assigned global positions or an error.
 	//
+	// The expectedVersion parameter controls optimistic concurrency:
+	// - Any(): No version check - always succeeds if no other errors
+	// - NoStream(): Aggregate must not exist - used for aggregate creation
+	// - Exact(N): Aggregate must be at version N - used for normal updates
+	//
 	// The store automatically assigns AggregateVersion to each event:
 	// - Fetches the current version from the aggregate_heads table (O(1) lookup)
+	// - Validates against expectedVersion
 	// - Assigns consecutive versions starting from (current + 1)
 	// - Updates aggregate_heads with the new version
 	// - The database unique constraint on (aggregate_type, aggregate_id, aggregate_version)
-	//   enforces optimistic concurrency
+	//   enforces optimistic concurrency as a last safety net
 	//
-	// Returns ErrOptimisticConcurrency if another transaction commits conflicting events
-	// between the version check and insert (detected via unique constraint violation).
+	// Returns ErrOptimisticConcurrency if expectedVersion validation fails or if
+	// another transaction commits conflicting events between the version check and insert
+	// (detected via unique constraint violation).
 	// Returns ErrNoEvents if events slice is empty.
-	Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]int64, error)
+	Append(ctx context.Context, tx es.DBTX, expectedVersion es.ExpectedVersion, events []es.Event) ([]int64, error)
 }
 
 // EventReader defines the interface for reading events sequentially.
@@ -52,16 +57,17 @@ type AggregateStreamReader interface {
 	//
 	// Parameters:
 	// - aggregateType: the type of aggregate (e.g., "User", "Order")
-	// - aggregateID: the unique identifier of the aggregate instance
+	// - aggregateID: the unique identifier of the aggregate instance (can be UUID string, email, etc.)
 	// - fromVersion: optional minimum version (inclusive). Pass nil to read from the beginning.
 	// - toVersion: optional maximum version (inclusive). Pass nil to read to the end.
 	//
 	// Examples:
-	// - ReadAggregateStream(ctx, tx, "User", id, nil, nil) - read all events
+	// - ReadAggregateStream(ctx, tx, "User", "550e8400-e29b-41d4-a716-446655440000", nil, nil) - read all events
 	// - ReadAggregateStream(ctx, tx, "User", id, ptr(5), nil) - read from version 5 onwards
+	// - ReadAggregateStream(ctx, tx, "EmailReservation", "user@example.com", nil, nil) - read reservation events
 	// - ReadAggregateStream(ctx, tx, "User", id, nil, ptr(10)) - read up to version 10
 	// - ReadAggregateStream(ctx, tx, "User", id, ptr(5), ptr(10)) - read versions 5-10
 	//
 	// Returns an empty slice if no events match the criteria.
-	ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID uuid.UUID, fromVersion, toVersion *int64) ([]es.PersistedEvent, error)
+	ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID string, fromVersion, toVersion *int64) ([]es.PersistedEvent, error)
 }

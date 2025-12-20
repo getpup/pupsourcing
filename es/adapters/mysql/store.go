@@ -56,18 +56,21 @@ func NewStore(config StoreConfig) *Store {
 
 // Append implements store.EventStore.
 // It automatically assigns aggregate versions using the aggregate_heads table for O(1) lookup.
+// The expectedVersion parameter controls optimistic concurrency validation.
 // The database constraint on (aggregate_type, aggregate_id, aggregate_version) enforces
-// optimistic concurrency - if another transaction commits between our version check and insert,
-// the insert will fail with a unique constraint violation.
+// optimistic concurrency as a safety net - if another transaction commits between our version
+// check and insert, the insert will fail with a unique constraint violation.
 //
-//nolint:gocyclo // Cyclomatic complexity of 16 is acceptable here - comes from necessary logging and validation checks
-func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]int64, error) {
+//nolint:gocyclo // Cyclomatic complexity is acceptable here - comes from necessary logging and validation checks
+func (s *Store) Append(ctx context.Context, tx es.DBTX, expectedVersion es.ExpectedVersion, events []es.Event) ([]int64, error) {
 	if len(events) == 0 {
 		return nil, store.ErrNoEvents
 	}
 
 	if s.config.Logger != nil {
-		s.config.Logger.Debug(ctx, "append starting", "event_count", len(events))
+		s.config.Logger.Debug(ctx, "append starting",
+			"event_count", len(events),
+			"expected_version", expectedVersion.String())
 	}
 
 	// Validate all events belong to same aggregate
@@ -90,15 +93,47 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 		WHERE aggregate_type = ? AND aggregate_id = ?
 	`, s.config.AggregateHeadsTable)
 
-	// Convert UUID to binary for MySQL
-	aggregateIDBytes, err := firstEvent.AggregateID.MarshalBinary()
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal aggregate ID: %w", err)
-	}
-
-	err = tx.QueryRowContext(ctx, query, firstEvent.AggregateType, aggregateIDBytes).Scan(&currentVersion)
+	err := tx.QueryRowContext(ctx, query, firstEvent.AggregateType, firstEvent.AggregateID).Scan(&currentVersion)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to check current version: %w", err)
+	}
+
+	// Validate expected version
+	if !expectedVersion.IsAny() {
+		if expectedVersion.IsNoStream() {
+			// NoStream: aggregate must not exist
+			if currentVersion.Valid {
+				if s.config.Logger != nil {
+					s.config.Logger.Error(ctx, "expected version validation failed: aggregate already exists",
+						"aggregate_type", firstEvent.AggregateType,
+						"aggregate_id", firstEvent.AggregateID,
+						"current_version", currentVersion.Int64,
+						"expected_version", expectedVersion.String())
+				}
+				return nil, store.ErrOptimisticConcurrency
+			}
+		} else if expectedVersion.IsExact() {
+			// Exact: aggregate must exist at exact version
+			if !currentVersion.Valid {
+				if s.config.Logger != nil {
+					s.config.Logger.Error(ctx, "expected version validation failed: aggregate does not exist",
+						"aggregate_type", firstEvent.AggregateType,
+						"aggregate_id", firstEvent.AggregateID,
+						"expected_version", expectedVersion.String())
+				}
+				return nil, store.ErrOptimisticConcurrency
+			}
+			if currentVersion.Int64 != expectedVersion.Value() {
+				if s.config.Logger != nil {
+					s.config.Logger.Error(ctx, "expected version validation failed: version mismatch",
+						"aggregate_type", firstEvent.AggregateType,
+						"aggregate_id", firstEvent.AggregateID,
+						"current_version", currentVersion.Int64,
+						"expected_version", expectedVersion.String())
+				}
+				return nil, store.ErrOptimisticConcurrency
+			}
+		}
 	}
 
 	// Determine starting version for new events
@@ -173,7 +208,7 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 		var result sql.Result
 		result, err = tx.ExecContext(ctx, insertQuery,
 			event.AggregateType,
-			aggregateIDBytes,
+			event.AggregateID,
 			aggregateVersion,
 			eventIDBytes,
 			event.EventType,
@@ -216,7 +251,7 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 		ON DUPLICATE KEY UPDATE aggregate_version = ?, updated_at = NOW()
 	`, s.config.AggregateHeadsTable)
 
-	_, err = tx.ExecContext(ctx, upsertQuery, firstEvent.AggregateType, aggregateIDBytes, latestVersion, latestVersion)
+	_, err = tx.ExecContext(ctx, upsertQuery, firstEvent.AggregateType, firstEvent.AggregateID, latestVersion, latestVersion)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update aggregate head: %w", err)
 	}
@@ -280,13 +315,14 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 	var events []es.PersistedEvent
 	for rows.Next() {
 		var e es.PersistedEvent
-		var aggregateIDBytes, eventIDBytes []byte
+		var aggregateID string
+		var eventIDBytes []byte
 		var traceIDBytes, correlationIDBytes, causationIDBytes []byte
 
 		err := rows.Scan(
 			&e.GlobalPosition,
 			&e.AggregateType,
-			&aggregateIDBytes,
+			&aggregateID,
 			&e.AggregateVersion,
 			&eventIDBytes,
 			&e.EventType,
@@ -302,10 +338,10 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 			return nil, fmt.Errorf("failed to scan event: %w", err)
 		}
 
-		// Parse UUIDs from binary
-		if err := e.AggregateID.UnmarshalBinary(aggregateIDBytes); err != nil {
-			return nil, fmt.Errorf("failed to parse aggregate ID: %w", err)
-		}
+		// Aggregate ID is now a string
+		e.AggregateID = aggregateID
+		
+		// Parse EventID from binary
 		if err := e.EventID.UnmarshalBinary(eventIDBytes); err != nil {
 			return nil, fmt.Errorf("failed to parse event ID: %w", err)
 		}
@@ -349,19 +385,13 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 // ReadAggregateStream implements store.AggregateStreamReader.
 //
 //nolint:gocyclo // Complexity comes from necessary UUID parsing and error handling
-func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID uuid.UUID, fromVersion, toVersion *int64) ([]es.PersistedEvent, error) {
+func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID string, fromVersion, toVersion *int64) ([]es.PersistedEvent, error) {
 	if s.config.Logger != nil {
 		s.config.Logger.Debug(ctx, "reading aggregate stream",
 			"aggregate_type", aggregateType,
 			"aggregate_id", aggregateID,
 			"from_version", fromVersion,
 			"to_version", toVersion)
-	}
-
-	// Convert UUID to binary for MySQL
-	aggregateIDBytes, err := aggregateID.MarshalBinary()
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal aggregate ID: %w", err)
 	}
 
 	// Build the query dynamically based on optional version parameters
@@ -376,7 +406,7 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 	`, s.config.EventsTable)
 
 	var args []interface{}
-	args = append(args, aggregateType, aggregateIDBytes)
+	args = append(args, aggregateType, aggregateID)
 
 	// Add version range filters if specified
 	if fromVersion != nil {
@@ -401,13 +431,14 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 	var events []es.PersistedEvent
 	for rows.Next() {
 		var e es.PersistedEvent
-		var aggIDBytes, eventIDBytes []byte
+		var aggID string
+		var eventIDBytes []byte
 		var traceIDBytes, correlationIDBytes, causationIDBytes []byte
 
 		err := rows.Scan(
 			&e.GlobalPosition,
 			&e.AggregateType,
-			&aggIDBytes,
+			&aggID,
 			&e.AggregateVersion,
 			&eventIDBytes,
 			&e.EventType,
@@ -423,10 +454,10 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 			return nil, fmt.Errorf("failed to scan event: %w", err)
 		}
 
-		// Parse UUIDs from binary
-		if err := e.AggregateID.UnmarshalBinary(aggIDBytes); err != nil {
-			return nil, fmt.Errorf("failed to parse aggregate ID: %w", err)
-		}
+		// Aggregate ID is now a string
+		e.AggregateID = aggID
+		
+		// Parse EventID from binary
 		if err := e.EventID.UnmarshalBinary(eventIDBytes); err != nil {
 			return nil, fmt.Errorf("failed to parse event ID: %w", err)
 		}

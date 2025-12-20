@@ -96,11 +96,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
 
-	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+	if pingErr := db.Ping(); pingErr != nil {
+		log.Fatalf("Failed to ping database: %v", pingErr)
 	}
+	defer db.Close()
 
 	ctx := context.Background()
 
@@ -110,8 +110,8 @@ func main() {
 	// Append some sample events (only from partition 0 to avoid duplicates)
 	if *partitionKey == 0 {
 		log.Println("Appending sample events...")
-		if err := appendSampleEvents(ctx, db, store); err != nil {
-			log.Printf("Warning: Failed to append sample events: %v", err)
+		if appendErr := appendSampleEvents(ctx, db, store); appendErr != nil {
+			log.Printf("Warning: Failed to append sample events: %v", appendErr)
 		}
 	}
 

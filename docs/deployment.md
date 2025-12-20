@@ -83,7 +83,7 @@ func main() {
     }()
     
     // Start processing
-    processor := projection.NewProcessor(db, store, config)
+    processor := projection.NewProcessor(db, store, &config)
     if err := processor.Run(ctx, userProjection); err != nil {
         log.Fatalf("Projection failed: %v", err)
     }

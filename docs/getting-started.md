@@ -168,7 +168,8 @@ func (p *UserCountProjection) Handle(_ context.Context, _ es.DBTX, event *es.Per
 
 ```go
 proj := &UserCountProjection{}
-processor := projection.NewProcessor(db, store, projection.DefaultProcessorConfig())
+config := projection.DefaultProcessorConfig()
+processor := projection.NewProcessor(db, store, &config)
 
 ctx, cancel := context.WithCancel(context.Background())
 defer cancel()

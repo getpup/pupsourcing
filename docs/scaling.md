@@ -105,7 +105,8 @@ import (
 )
 
 proj := &UserCountProjection{db: db}
-processor := projection.NewProcessor(db, store, projection.DefaultProcessorConfig())
+config := projection.DefaultProcessorConfig()
+processor := projection.NewProcessor(db, store, &config)
 
 // Run until context is cancelled
 ctx, cancel := context.WithCancel(context.Background())
@@ -177,7 +178,7 @@ config := projection.DefaultProcessorConfig()
 config.PartitionKey = 0      // This worker's partition (0-3)
 config.TotalPartitions = 4   // Total number of workers
 
-processor := projection.NewProcessor(db, store, config)
+processor := projection.NewProcessor(db, store, &config)
 ```
 
 **Why hash-based?**
@@ -485,12 +486,12 @@ Process recent events quickly, older events more slowly:
 // Hot path: Recent events (small batches, low latency)
 hotConfig := projection.DefaultProcessorConfig()
 hotConfig.BatchSize = 10
-hotProcessor := projection.NewProcessor(db, store, hotConfig)
+hotProcessor := projection.NewProcessor(db, store, &hotConfig)
 
 // Cold path: Historical events (large batches, high throughput)
 coldConfig := projection.DefaultProcessorConfig()
 coldConfig.BatchSize = 1000
-coldProcessor := projection.NewProcessor(db, store, coldConfig)
+coldProcessor := projection.NewProcessor(db, store, &coldConfig)
 ```
 
 ### Pattern 4: Idempotent Projections

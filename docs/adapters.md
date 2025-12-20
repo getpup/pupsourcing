@@ -1,60 +1,56 @@
 # Database Adapters
 
-pupsourcing provides multiple database adapters that implement the same core interfaces, allowing you to choose the database that best fits your deployment needs. All adapters provide identical functionality and can be swapped with minimal code changes.
+pupsourcing provides production-ready adapters for PostgreSQL, SQLite, and MySQL/MariaDB. All adapters implement identical interfaces, enabling seamless database migration.
 
-## Overview
+## Architecture
 
-Each adapter implements three key interfaces:
-- **`store.EventStore`** - Append events with optimistic concurrency control
-- **`store.EventReader`** - Read events sequentially by global position
-- **`store.AggregateStreamReader`** - Read events for specific aggregates
+Each adapter implements three core interfaces:
+- **`store.EventStore`** - Append events with optimistic concurrency
+- **`store.EventReader`** - Sequential event reading by global position
+- **`store.AggregateStreamReader`** - Aggregate-specific event retrieval
 
-This design ensures that your application code remains database-agnostic, and projections work identically across all adapters.
+This design maintains database-agnostic application code and ensures consistent projection behavior across all adapters.
 
-## Available Adapters
-
-### PostgreSQL Adapter
+## PostgreSQL Adapter
 
 **Package:** `github.com/getpup/pupsourcing/es/adapters/postgres`  
 **Driver:** `github.com/lib/pq`  
 **Status:** Production-ready ✅
 
-#### Capabilities
+### Key Features
 
-- **Native UUID Support**: Uses PostgreSQL's native `UUID` type for optimal storage and indexing
-- **JSONB Metadata**: Stores metadata as `JSONB` with support for indexing and querying
-- **Advanced Indexing**: Supports partial indexes, expression indexes, and GIN indexes on JSONB
-- **Concurrent Writes**: Excellent performance with high concurrency
-- **Optimistic Concurrency**: Enforced via unique constraints on `(aggregate_type, aggregate_id, aggregate_version)`
-- **Aggregate Version Tracking**: O(1) version lookups via `aggregate_heads` table
+- Native UUID type for efficient storage and indexing
+- JSONB metadata with advanced querying capabilities
+- Excellent concurrent write performance
+- O(1) version lookups via `aggregate_heads` table
+- Optimistic concurrency via unique constraints
 
-#### Data Types
+### Data Types
 
-| Field | PostgreSQL Type | Notes |
-|-------|----------------|-------|
-| `global_position` | `BIGSERIAL` | Auto-incrementing, provides total ordering |
-| `aggregate_id` | `UUID` | Native UUID type |
-| `event_id` | `UUID` | Native UUID type with unique constraint |
-| `payload` | `BYTEA` | Binary data, supports any serialization format |
-| `metadata` | `JSONB` | Queryable JSON with indexing support |
-| `created_at` | `TIMESTAMPTZ` | Timezone-aware timestamps |
+| Field | Type | Purpose |
+|-------|------|---------|
+| `global_position` | `BIGSERIAL` | Auto-incrementing, globally ordered |
+| `aggregate_id` | `UUID` | Native UUID storage |
+| `event_id` | `UUID` | Unique event identifier |
+| `payload` | `BYTEA` | Binary event data |
+| `metadata` | `JSONB` | Queryable structured metadata |
+| `created_at` | `TIMESTAMPTZ` | Timezone-aware timestamp |
 
-#### Unique Features
+### Advanced Capabilities
 
-- **Full-text search** on JSONB metadata
-- **Partial indexes** for filtered queries
-- **Listen/Notify** for real-time event notifications
-- **Row-level security** for multi-tenant applications
+- Full-text search on JSONB metadata
+- Partial and expression indexes
+- LISTEN/NOTIFY for real-time notifications
+- Row-level security for multi-tenancy
 
-#### Best For
+### Ideal For
 
-- Production applications requiring high availability
-- Multi-tenant systems
-- Applications needing advanced querying on metadata
-- Systems with high concurrent write loads
-- Applications requiring real-time event notifications
+- High-availability production systems
+- Multi-tenant applications
+- High concurrent write workloads
+- Advanced metadata querying requirements
 
-#### Example Usage
+### Usage
 
 ```go
 import (
@@ -62,7 +58,6 @@ import (
     _ "github.com/lib/pq"
 )
 
-// Create store
 store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 // Use with *sql.DB or *sql.Tx
@@ -71,13 +66,6 @@ tx, _ := db.BeginTx(ctx, nil)
 positions, err := store.Append(ctx, tx, events)
 tx.Commit()
 ```
-
-#### Migration Generation
-
-```go
-import "github.com/getpup/pupsourcing/es/migrations"
-
-config := migrations.DefaultConfig()
 err := migrations.GeneratePostgres(&config)
 ```
 

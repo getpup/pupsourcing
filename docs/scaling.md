@@ -109,89 +109,75 @@ err := processor.Run(ctx, proj)
 
 ## Horizontal Scaling
 
-When a single projection worker can't keep up with the event stream, you need to scale horizontally by adding more workers.
+Scale projection processing by distributing work across multiple workers.
 
-### When Do You Need Horizontal Scaling?
+### When to Scale
 
-**Symptoms that you need to scale:**
-- Projection lag is growing (falling further behind)
-- Processing one event takes too long (expensive operations)
-- High event throughput (thousands of events per second)
-- Single worker CPU/memory maxed out
+**Indicators:**
+- Projection lag increasing over time
+- Event processing unable to keep pace with write rate
+- Single worker resource constraints (CPU/memory)
+- High-latency operations in projection handlers
 
-**When NOT to scale horizontally:**
-- Lag is stable (keeping up fine)
-- Low event volume (< 100 events/sec)
-- Projection logic is fast (< 1ms per event)
-- You haven't optimized the single worker yet (try batch size tuning first)
+**When Not to Scale:**
+- Stable lag with adequate headroom
+- Low event volume (< 100 events/second)
+- Fast projection logic (< 1ms per event)
+- Single worker not yet optimized (tune batch size first)
 
-**Example scenario:**
+**Example Calculation:**
 
-Your e-commerce platform generates 10,000 order events per hour. Each event requires:
-- Database insert (2ms)
-- External API call to update inventory (50ms)
-- Cache invalidation (1ms)
+System generating 10,000 events/hour with per-event cost:
+- Database insert: 2ms
+- External API call: 50ms  
+- Cache invalidation: 1ms
+- Total: ~53ms per event
 
-Total: ~53ms per event = ~1.13 events/second per worker
+Throughput: ~18.9 events/second per worker
+Required capacity: 2.78 events/second (10,000/hour)
+Workers needed: 1 (with headroom)
 
-To process 10,000 events/hour (2.77 events/sec), you need at least 3 workers. In practice, use 4 for safety margin.
+For 100,000 events/hour: Need 2-3 workers minimum, use 4 for margin.
 
 ### Architecture
 
 ```
-Event Stream:     Partitions:       Workers:
-  Event 1    →    Partition 0  →   Worker 0
-  Event 2    →    Partition 1  →   Worker 1
-  Event 3    →    Partition 2  →   Worker 2
-  Event 4    →    Partition 3  →   Worker 3
-  Event 5    →    Partition 0  →   Worker 0
-  ...
+Event Stream → Partition Assignment → Worker Pool
+  Event A   →   Partition 0      →   Worker 0
+  Event B   →   Partition 1      →   Worker 1  
+  Event C   →   Partition 2      →   Worker 2
+  Event D   →   Partition 3      →   Worker 3
 ```
 
-**How it works:**
-1. Each event is assigned to a partition based on its `aggregate_id`
-2. Each worker processes events only from its assigned partition
-3. Workers operate independently - no coordination needed
-4. Checkpoints are maintained per-projection (not per-partition)
+**Mechanism:**
+1. Events assigned to partitions via `hash(aggregate_id)`
+2. Each worker processes its assigned partition(s)
+3. Workers operate independently without coordination
+4. Single checkpoint per projection (not per partition)
 
 ### Hash-Based Partitioning
 
-Events are distributed based on `hash(aggregate_id) % total_partitions`:
-
 ```go
 config := projection.DefaultProcessorConfig()
-config.PartitionKey = 0      // This worker's partition (0-3)
-config.TotalPartitions = 4   // Total number of workers
+config.PartitionKey = 0      // This worker (0-indexed)
+config.TotalPartitions = 4   // Total worker count
 
 processor := projection.NewProcessor(db, store, &config)
 ```
 
-**Why hash-based?**
-- Simple and deterministic
-- No coordination required between workers
-- Even distribution across partitions
-- Same aggregate always goes to same partition
+**Characteristics:**
+- Deterministic assignment: same aggregate → same partition
+- Even distribution across workers
+- No coordination overhead
+- Maintains per-aggregate ordering
 
-### Guarantees
+### Ordering Guarantees
 
-✅ **Events for the same aggregate go to the same partition**
-  - Maintains ordering within an aggregate
-  - Safe for stateful projections
-  - Example: All events for `User(id=123)` always go to the same partition
+✅ **Within Aggregate** - Events for same aggregate processed in order
+✅ **Deterministic Assignment** - Same aggregate always routes to same partition
+✅ **Even Distribution** - Approximately equal load per partition
 
-✅ **Even distribution across partitions**
-  - Each partition handles approximately equal load
-  - With 4 partitions, each handles ~25% of events
-  - Load balancing is automatic
-
-✅ **Deterministic assignment**
-  - Same aggregate always goes to same partition
-  - Predictable behavior
-  - Replay gives same results
-
-❌ **No global ordering guarantee**
-  - Events across different aggregates may be processed out of order
-  - This is usually fine for most use cases
+❌ **Cross-Aggregate** - No global ordering between different aggregates
 
 ### Scaling Patterns
 

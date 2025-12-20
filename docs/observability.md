@@ -1,20 +1,20 @@
-# Observability Guide
+# Observability
 
-This guide covers logging, tracing, and metrics for pupsourcing applications.
+Logging, tracing, and monitoring capabilities for pupsourcing applications.
 
 ## Overview
 
-pupsourcing provides multiple observability hooks to help you understand and debug your event sourcing system:
+pupsourcing provides comprehensive observability features:
 
-1. **Logging** - Optional logger injection for debugging and monitoring
-2. **Distributed Tracing** - Built-in TraceID, CorrelationID, and CausationID fields
-3. **Metrics** - Integration patterns with Prometheus and other systems (see [Deployment Guide](./deployment.md#monitoring))
+1. **Logging** - Optional logger injection without forced dependencies
+2. **Distributed Tracing** - Built-in TraceID, CorrelationID, and CausationID support
+3. **Metrics** - Integration patterns with monitoring systems
 
 ## Logging
 
 ### Logger Interface
 
-pupsourcing includes an optional logging interface that allows you to instrument the library without forcing logging decisions or dependencies.
+Minimal interface enabling integration with any logging library:
 
 ```go
 type Logger interface {
@@ -26,17 +26,11 @@ type Logger interface {
 
 ### Event Store Logging
 
-Inject a logger into the event store to observe:
-- Append operations (event counts, aggregate info, versions, positions)
-- Read operations (query parameters and result counts)
-- Optimistic concurrency conflicts
+Logs append operations, read operations, and concurrency conflicts:
 
 ```go
-import (
-    "github.com/getpup/pupsourcing/es/adapters/postgres"
-)
+import "github.com/getpup/pupsourcing/es/adapters/postgres"
 
-// Create your logger wrapper
 type MyLogger struct {
     logger *slog.Logger
 }
@@ -53,7 +47,7 @@ func (l *MyLogger) Error(ctx context.Context, msg string, keyvals ...interface{}
     l.logger.ErrorContext(ctx, msg, keyvals...)
 }
 
-// Inject into store
+// Inject logger
 config := postgres.DefaultStoreConfig()
 config.Logger = &MyLogger{logger: slog.Default()}
 store := postgres.NewStore(config)
@@ -61,16 +55,10 @@ store := postgres.NewStore(config)
 
 ### Projection Logging
 
-Inject a logger into projection processors to observe:
-- Processor start/stop events
-- Batch processing progress (processed/skipped event counts)
-- Checkpoint updates
-- Handler errors with detailed event context
+Logs processor lifecycle, batch progress, checkpoints, and errors:
 
 ```go
-import (
-    "github.com/getpup/pupsourcing/es/projection"
-)
+import "github.com/getpup/pupsourcing/es/projection"
 
 config := projection.DefaultProcessorConfig()
 config.Logger = &MyLogger{logger: slog.Default()}
@@ -79,15 +67,15 @@ processor := projection.NewProcessor(db, store, &config)
 
 ### Zero-Overhead Design
 
-When no logger is configured, logging is completely disabled with **zero overhead**:
+Logging disabled by default with no performance impact:
 
 ```go
-// No logger = no performance impact
-config := postgres.DefaultStoreConfig()  // Logger is nil by default
+// No logger configured = zero overhead
+config := postgres.DefaultStoreConfig()  // Logger is nil
 store := postgres.NewStore(config)
 ```
 
-All logging operations check `if logger != nil` before executing, ensuring no allocation or function call overhead when logging is disabled.
+All logging operations check `logger != nil` before execution, ensuring zero allocation or call overhead when disabled.
 
 ### Integration Examples
 

@@ -5,10 +5,11 @@ Complete API documentation for pupsourcing.
 ## Table of Contents
 
 1. [Core Types](#core-types)
-2. [Event Store](#event-store)
-3. [Projections](#projections)
-4. [Runner Package](#runner-package)
-5. [PostgreSQL Adapter](#postgresql-adapter)
+2. [Observability](#observability)
+3. [Event Store](#event-store)
+4. [Projections](#projections)
+5. [Runner Package](#runner-package)
+6. [PostgreSQL Adapter](#postgresql-adapter)
 
 ## Core Types
 
@@ -68,6 +69,58 @@ type DBTX interface {
 ```
 
 Implemented by both `*sql.DB` and `*sql.Tx`.
+
+## Observability
+
+### es.Logger
+
+Optional logging interface for instrumenting the library.
+
+```go
+type Logger interface {
+    Debug(ctx context.Context, msg string, keyvals ...interface{})
+    Info(ctx context.Context, msg string, keyvals ...interface{})
+    Error(ctx context.Context, msg string, keyvals ...interface{})
+}
+```
+
+**Usage:**
+```go
+type MyLogger struct {
+    logger *slog.Logger
+}
+
+func (l *MyLogger) Debug(ctx context.Context, msg string, keyvals ...interface{}) {
+    l.logger.DebugContext(ctx, msg, keyvals...)
+}
+
+func (l *MyLogger) Info(ctx context.Context, msg string, keyvals ...interface{}) {
+    l.logger.InfoContext(ctx, msg, keyvals...)
+}
+
+func (l *MyLogger) Error(ctx context.Context, msg string, keyvals ...interface{}) {
+    l.logger.ErrorContext(ctx, msg, keyvals...)
+}
+
+// Inject into store
+config := postgres.DefaultStoreConfig()
+config.Logger = &MyLogger{logger: slog.Default()}
+store := postgres.NewStore(config)
+```
+
+See the [Observability Guide](./observability.md) for complete documentation and examples.
+
+### es.NoOpLogger
+
+Default logger implementation that does nothing. Used internally when no logger is configured.
+
+```go
+type NoOpLogger struct{}
+
+func (NoOpLogger) Debug(_ context.Context, _ string, _ ...interface{}) {}
+func (NoOpLogger) Info(_ context.Context, _ string, _ ...interface{}) {}
+func (NoOpLogger) Error(_ context.Context, _ string, _ ...interface{}) {}
+```
 
 ## Event Store
 
@@ -247,13 +300,15 @@ type Processor struct {
 Creates a new projection processor.
 
 ```go
-func NewProcessor(db *sql.DB, eventReader store.EventReader, config ProcessorConfig) *Processor
+func NewProcessor(db *sql.DB, eventReader store.EventReader, config *ProcessorConfig) *Processor
 ```
 
 **Parameters:**
 - `db`: Database connection
 - `eventReader`: Event reader implementation
-- `config`: Processor configuration
+- `config`: Processor configuration (passed by pointer)
+
+**Breaking Change (v1.1.0):** Changed from `ProcessorConfig` (value) to `*ProcessorConfig` (pointer) for better performance.
 
 **Returns:**
 - `*Processor`: Processor instance
@@ -292,14 +347,17 @@ Configuration for projection processor.
 
 ```go
 type ProcessorConfig struct {
+    PartitionStrategy PartitionStrategy  // Partitioning strategy
+    Logger            es.Logger          // Optional logger (nil = disabled)
     EventsTable       string             // Name of events table
     CheckpointsTable  string             // Name of checkpoints table
     BatchSize         int                // Events per batch
     PartitionKey      int                // This worker's partition (0-indexed)
     TotalPartitions   int                // Total number of partitions
-    PartitionStrategy PartitionStrategy  // Partitioning strategy
 }
 ```
+
+**Note:** Fields are ordered by size (interfaces/pointers first) for optimal memory layout.
 
 #### DefaultProcessorConfig
 
@@ -314,6 +372,7 @@ func DefaultProcessorConfig() ProcessorConfig {
         PartitionKey:      0,
         TotalPartitions:   1,
         PartitionStrategy: HashPartitionStrategy{},
+        Logger:            nil,  // No logging by default
     }
 }
 ```
@@ -479,11 +538,14 @@ Configuration for PostgreSQL store.
 
 ```go
 type StoreConfig struct {
-    EventsTable         string  // Events table name
-    AggregateHeadsTable string  // Aggregate heads table name
-    CheckpointsTable    string  // Checkpoints table name
+    Logger              es.Logger  // Optional logger (nil = disabled)
+    EventsTable         string     // Events table name
+    AggregateHeadsTable string     // Aggregate heads table name
+    CheckpointsTable    string     // Checkpoints table name
 }
 ```
+
+**Note:** Fields are ordered by size (interfaces/pointers first) for optimal memory layout.
 
 #### DefaultStoreConfig
 
@@ -495,6 +557,7 @@ func DefaultStoreConfig() StoreConfig {
         EventsTable:         "events",
         AggregateHeadsTable: "aggregate_heads",
         CheckpointsTable:    "projection_checkpoints",
+        Logger:              nil,  // No logging by default
     }
 }
 ```

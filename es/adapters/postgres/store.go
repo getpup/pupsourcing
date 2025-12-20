@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/lib/pq"
 
 	"github.com/getpup/pupsourcing/es"
@@ -55,18 +54,21 @@ func NewStore(config StoreConfig) *Store {
 
 // Append implements store.EventStore.
 // It automatically assigns aggregate versions using the aggregate_heads table for O(1) lookup.
+// The expectedVersion parameter controls optimistic concurrency validation.
 // The database constraint on (aggregate_type, aggregate_id, aggregate_version) enforces
-// optimistic concurrency - if another transaction commits between our version check and insert,
-// the insert will fail with a unique constraint violation.
+// optimistic concurrency as a safety net - if another transaction commits between our version
+// check and insert, the insert will fail with a unique constraint violation.
 //
-//nolint:gocyclo // Cyclomatic complexity of 16 is acceptable here - comes from necessary logging and validation checks
-func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]int64, error) {
+//nolint:gocyclo // Cyclomatic complexity is acceptable here - comes from necessary logging and validation checks
+func (s *Store) Append(ctx context.Context, tx es.DBTX, expectedVersion es.ExpectedVersion, events []es.Event) ([]int64, error) {
 	if len(events) == 0 {
 		return nil, store.ErrNoEvents
 	}
 
 	if s.config.Logger != nil {
-		s.config.Logger.Debug(ctx, "append starting", "event_count", len(events))
+		s.config.Logger.Debug(ctx, "append starting",
+			"event_count", len(events),
+			"expected_version", expectedVersion.String())
 	}
 
 	// Validate all events belong to same aggregate
@@ -92,6 +94,44 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 	err := tx.QueryRowContext(ctx, query, firstEvent.AggregateType, firstEvent.AggregateID).Scan(&currentVersion)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to check current version: %w", err)
+	}
+
+	// Validate expected version
+	if !expectedVersion.IsAny() {
+		if expectedVersion.IsNoStream() {
+			// NoStream: aggregate must not exist
+			if currentVersion.Valid {
+				if s.config.Logger != nil {
+					s.config.Logger.Error(ctx, "expected version validation failed: aggregate already exists",
+						"aggregate_type", firstEvent.AggregateType,
+						"aggregate_id", firstEvent.AggregateID,
+						"current_version", currentVersion.Int64,
+						"expected_version", expectedVersion.String())
+				}
+				return nil, store.ErrOptimisticConcurrency
+			}
+		} else if expectedVersion.IsExact() {
+			// Exact: aggregate must exist at exact version
+			if !currentVersion.Valid {
+				if s.config.Logger != nil {
+					s.config.Logger.Error(ctx, "expected version validation failed: aggregate does not exist",
+						"aggregate_type", firstEvent.AggregateType,
+						"aggregate_id", firstEvent.AggregateID,
+						"expected_version", expectedVersion.String())
+				}
+				return nil, store.ErrOptimisticConcurrency
+			}
+			if currentVersion.Int64 != expectedVersion.Value() {
+				if s.config.Logger != nil {
+					s.config.Logger.Error(ctx, "expected version validation failed: version mismatch",
+						"aggregate_type", firstEvent.AggregateType,
+						"aggregate_id", firstEvent.AggregateID,
+						"current_version", currentVersion.Int64,
+						"expected_version", expectedVersion.String())
+				}
+				return nil, store.ErrOptimisticConcurrency
+			}
+		}
 	}
 
 	// Determine starting version for new events
@@ -285,7 +325,7 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 }
 
 // ReadAggregateStream implements store.AggregateStreamReader.
-func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID uuid.UUID, fromVersion, toVersion *int64) ([]es.PersistedEvent, error) {
+func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID string, fromVersion, toVersion *int64) ([]es.PersistedEvent, error) {
 	if s.config.Logger != nil {
 		s.config.Logger.Debug(ctx, "reading aggregate stream",
 			"aggregate_type", aggregateType,

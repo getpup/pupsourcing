@@ -42,8 +42,10 @@ type Event struct {
 	// EventID is a unique identifier for this event
 	EventID uuid.UUID
 
-	// AggregateID uniquely identifies the aggregate instance
-	AggregateID uuid.UUID
+	// AggregateID uniquely identifies the aggregate instance.
+	// This can be any string value, allowing for flexible aggregate identification
+	// such as UUIDs, email addresses (for reservation aggregates), or other identifiers.
+	AggregateID string
 }
 
 // PersistedEvent represents an event that has been stored.
@@ -86,6 +88,8 @@ type PersistedEvent struct {
 	// EventID is a unique identifier for this event
 	EventID uuid.UUID
 
-	// AggregateID uniquely identifies the aggregate instance
-	AggregateID uuid.UUID
+	// AggregateID uniquely identifies the aggregate instance.
+	// This can be any string value, allowing for flexible aggregate identification
+	// such as UUIDs, email addresses (for reservation aggregates), or other identifiers.
+	AggregateID string
 }

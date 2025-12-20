@@ -63,7 +63,7 @@ func generatePostgresSQL(config *Config) string {
 CREATE TABLE IF NOT EXISTS %s (
     global_position BIGSERIAL PRIMARY KEY,
     aggregate_type TEXT NOT NULL,
-    aggregate_id UUID NOT NULL,
+    aggregate_id TEXT NOT NULL,
     aggregate_version BIGINT NOT NULL,
     event_id UUID NOT NULL UNIQUE,
     event_type TEXT NOT NULL,
@@ -96,7 +96,7 @@ CREATE INDEX IF NOT EXISTS idx_%s_correlation
 -- Primary key (aggregate_type, aggregate_id) ensures one row per aggregate
 CREATE TABLE IF NOT EXISTS %s (
     aggregate_type TEXT NOT NULL,
-    aggregate_id UUID NOT NULL,
+    aggregate_id TEXT NOT NULL,
     aggregate_version BIGINT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     
@@ -247,7 +247,7 @@ func generateMySQLSQL(config *Config) string {
 CREATE TABLE IF NOT EXISTS %s (
     global_position BIGINT AUTO_INCREMENT PRIMARY KEY,
     aggregate_type VARCHAR(255) NOT NULL,
-    aggregate_id BINARY(16) NOT NULL,
+    aggregate_id VARCHAR(255) NOT NULL,
     aggregate_version BIGINT NOT NULL,
     event_id BINARY(16) NOT NULL UNIQUE,
     event_type VARCHAR(255) NOT NULL,
@@ -280,7 +280,7 @@ CREATE INDEX idx_%s_correlation
 -- Primary key (aggregate_type, aggregate_id) ensures one row per aggregate
 CREATE TABLE IF NOT EXISTS %s (
     aggregate_type VARCHAR(255) NOT NULL,
-    aggregate_id BINARY(16) NOT NULL,
+    aggregate_id VARCHAR(255) NOT NULL,
     aggregate_version BIGINT NOT NULL,
     updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     

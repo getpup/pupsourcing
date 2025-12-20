@@ -91,10 +91,11 @@ payload, _ := json.Marshal(UserCreated{
 })
 
 // Create event
+aggregateID := uuid.New() // In practice, this comes from your domain/business logic
 events := []es.Event{
     {
         AggregateType: "User",
-        AggregateID:   uuid.New(),
+        AggregateID:   aggregateID,
         EventID:       uuid.New(),
         EventType:     "UserCreated",
         EventVersion:  1,

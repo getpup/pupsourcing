@@ -2,6 +2,96 @@
 
 This guide covers production deployment patterns, monitoring, and operational best practices for pupsourcing.
 
+## Prerequisites
+
+Before deploying, you need to implement a `run-projections` command in your application. This command should:
+
+1. Parse configuration from environment variables or flags
+2. Initialize database connection
+3. Create projection instances
+4. Use the runner package to start processing
+
+**Example implementation:**
+
+```go
+package main
+
+import (
+    "context"
+    "database/sql"
+    "flag"
+    "log"
+    "os"
+    "os/signal"
+    "strconv"
+    "syscall"
+    
+    "github.com/getpup/pupsourcing/es/adapters/postgres"
+    "github.com/getpup/pupsourcing/es/projection"
+    "github.com/getpup/pupsourcing/es/projection/runner"
+    _ "github.com/lib/pq"
+)
+
+func main() {
+    // Parse flags
+    partitionKey := flag.Int("partition-key", -1, "Partition key")
+    totalPartitions := flag.Int("total-partitions", 1, "Total partitions")
+    flag.Parse()
+    
+    // Also support environment variables
+    if *partitionKey == -1 {
+        if envKey := os.Getenv("PARTITION_KEY"); envKey != "" {
+            *partitionKey, _ = strconv.Atoi(envKey)
+        } else {
+            *partitionKey = 0
+        }
+    }
+    if envTotal := os.Getenv("TOTAL_PARTITIONS"); envTotal != "" {
+        *totalPartitions, _ = strconv.Atoi(envTotal)
+    }
+    
+    // Connect to database
+    dbURL := os.Getenv("DATABASE_URL")
+    db, err := sql.Open("postgres", dbURL)
+    if err != nil {
+        log.Fatalf("Failed to connect to database: %v", err)
+    }
+    defer db.Close()
+    
+    // Create store
+    store := postgres.NewStore(postgres.DefaultStoreConfig())
+    
+    // Configure projection
+    config := projection.DefaultProcessorConfig()
+    config.PartitionKey = *partitionKey
+    config.TotalPartitions = *totalPartitions
+    
+    // Create your projections
+    userProjection := &UserReadModelProjection{db: db}
+    
+    // Run with context cancellation
+    ctx, cancel := context.WithCancel(context.Background())
+    defer cancel()
+    
+    // Handle shutdown signals
+    sigChan := make(chan os.Signal, 1)
+    signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+    go func() {
+        <-sigChan
+        log.Println("Shutdown signal received")
+        cancel()
+    }()
+    
+    // Start processing
+    processor := projection.NewProcessor(db, store, config)
+    if err := processor.Run(ctx, userProjection); err != nil {
+        log.Fatalf("Projection failed: %v", err)
+    }
+}
+```
+
+For multiple projections or partitioned execution, see the [scaling guide](./scaling.md) and [examples](../examples/).
+
 ## Deployment Patterns
 
 ### Pattern 1: Single Binary, Multiple Instances
@@ -74,14 +164,17 @@ volumes:
 
 #### Kubernetes
 
+**Deployment Approach:** pupsourcing projections with partitioning require **StatefulSets**, not regular Deployments, because each worker needs a stable, predictable partition key.
+
+##### Option 1: StatefulSet (Recommended for Partitioned Projections)
+
 ```yaml
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: projection-workers
-  labels:
-    app: projection-workers
 spec:
+  serviceName: projection-workers
   replicas: 4
   selector:
     matchLabels:
@@ -90,6 +183,77 @@ spec:
     metadata:
       labels:
         app: projection-workers
+    spec:
+      initContainers:
+      - name: set-partition-key
+        image: busybox
+        command:
+        - sh
+        - -c
+        - |
+          # Extract ordinal from hostname (projection-workers-0, projection-workers-1, etc.)
+          ORDINAL=$(hostname | grep -o '[0-9]*$')
+          echo "PARTITION_KEY=$ORDINAL" > /config/partition.env
+        volumeMounts:
+        - name: config
+          mountPath: /config
+      containers:
+      - name: worker
+        image: myapp:latest
+        command: ["sh", "-c", "source /config/partition.env && ./myapp run-projections"]
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: url
+        - name: TOTAL_PARTITIONS
+          value: "4"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: config
+          mountPath: /config
+      volumes:
+      - name: config
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: projection-workers
+spec:
+  clusterIP: None  # Headless service for StatefulSet
+  selector:
+    app: projection-workers
+  ports:
+  - port: 8080
+    targetPort: 8080
+```
+
+##### Option 2: Regular Deployment (Only for Non-Partitioned Projections)
+
+If you're running projections **without partitioning** (i.e., `TotalPartitions=1`), you can use a regular Deployment:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: projection-worker
+spec:
+  replicas: 1  # Only 1 replica for non-partitioned
+  selector:
+    matchLabels:
+      app: projection-worker
+  template:
+    metadata:
+      labels:
+        app: projection-worker
     spec:
       containers:
       - name: worker
@@ -102,44 +266,35 @@ spec:
               name: db-credentials
               key: url
         - name: PARTITION_KEY
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.labels['statefulset.kubernetes.io/pod-name']
+          value: "0"
         - name: TOTAL_PARTITIONS
-          value: "4"
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 5
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: projection-workers
-spec:
-  selector:
-    app: projection-workers
-  ports:
-  - port: 8080
-    targetPort: 8080
+          value: "1"
 ```
 
-**Note:** Extract partition key from pod ordinal in init container if using StatefulSet.
+##### Horizontal Pod Autoscaler (HPA) Compatibility
+
+**⚠️ WARNING: HPA is NOT compatible with partitioned projections.**
+
+**Why:** Partitioning requires a fixed `TOTAL_PARTITIONS` value. Each worker must be configured with a specific `PARTITION_KEY` from 0 to `TOTAL_PARTITIONS-1`. When HPA scales pods up or down dynamically:
+
+1. **Scaling up**: New pods don't automatically get assigned unique partition keys
+2. **Scaling down**: Removed pods leave gaps in partition coverage
+3. **Result**: Events may be skipped or processed multiple times
+
+**Alternatives to HPA:**
+
+1. **Pre-plan capacity**: Set `replicas` to expected max load
+2. **Manual scaling**: Scale StatefulSet manually when needed:
+   ```bash
+   kubectl scale statefulset projection-workers --replicas=8
+   ```
+3. **Vertical scaling**: Use VPA (Vertical Pod Autoscaler) to adjust resource requests/limits
+4. **Different projections, different scales**: Run fast projections without partitioning, slow projections with fixed partitions
+
+**If you need dynamic scaling:**
+- Run projections without partitioning (`TOTAL_PARTITIONS=1`)
+- Scale the single projection vertically (more CPU/memory)
+- Or split into multiple independent projections that can scale separately
 
 #### Systemd
 
@@ -274,58 +429,33 @@ func runProjections() {
 
 ### Environment Variables
 
+Your application should parse these environment variables. Example:
+
 ```bash
 # Database
 export DATABASE_URL="postgres://user:pass@host:5432/db?sslmode=require"
-export DATABASE_MAX_OPEN_CONNS="25"
-export DATABASE_MAX_IDLE_CONNS="5"
-export DATABASE_CONN_MAX_LIFETIME="5m"
 
 # Projection Configuration
 export PARTITION_KEY="0"
 export TOTAL_PARTITIONS="4"
 export BATCH_SIZE="100"
-export EVENTS_TABLE="events"
-export CHECKPOINTS_TABLE="projection_checkpoints"
-
-# Observability
-export LOG_LEVEL="info"
-export METRICS_PORT="9090"
-export TRACE_ENDPOINT="http://jaeger:14268/api/traces"
 ```
 
-### Configuration File
+**Note:** pupsourcing doesn't include configuration loading. You'll need to implement this in your application using standard Go libraries like `os.Getenv()` or a configuration library like `viper`.
 
-```yaml
-# config.yaml
-database:
-  url: postgres://user:pass@localhost:5432/myapp
-  max_open_conns: 25
-  max_idle_conns: 5
-  conn_max_lifetime: 5m
+Example implementation:
 
-projections:
-  batch_size: 100
-  events_table: events
-  checkpoints_table: projection_checkpoints
-  
-  workers:
-    - name: user_read_model
-      partition_key: 0
-      total_partitions: 1
+```go
+func loadConfig() Config {
+    partitionKey, _ := strconv.Atoi(os.Getenv("PARTITION_KEY"))
+    totalPartitions, _ := strconv.Atoi(os.Getenv("TOTAL_PARTITIONS"))
     
-    - name: analytics
-      partition_key: 0
-      total_partitions: 4
-      batch_size: 500
-
-logging:
-  level: info
-  format: json
-
-metrics:
-  enabled: true
-  port: 9090
+    return Config{
+        DatabaseURL:     os.Getenv("DATABASE_URL"),
+        PartitionKey:    partitionKey,
+        TotalPartitions: totalPartitions,
+    }
+}
 ```
 
 ## Monitoring
@@ -344,29 +474,7 @@ FROM projection_checkpoints
 ORDER BY lag DESC;
 ```
 
-2. **Event Throughput**
-```sql
--- Events per minute over the last hour
-SELECT 
-    date_trunc('minute', created_at) as minute,
-    COUNT(*) as event_count
-FROM events
-WHERE created_at > NOW() - INTERVAL '1 hour'
-GROUP BY minute
-ORDER BY minute DESC;
-```
-
-3. **Projection Processing Rate**
-```sql
--- Checkpoint updates per minute (processing activity)
-SELECT 
-    projection_name,
-    COUNT(*) as updates_count,
-    MAX(last_global_position) - MIN(last_global_position) as events_processed
-FROM projection_checkpoints
-WHERE updated_at > NOW() - INTERVAL '1 minute'
-GROUP BY projection_name;
-```
+**Note:** For production monitoring, consider implementing dedicated observability projections that maintain pre-computed metrics tables, rather than running expensive analytical queries directly against the events table.
 
 ### Prometheus Metrics
 

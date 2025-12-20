@@ -180,7 +180,8 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 			return nil, fmt.Errorf("failed to insert event %d: %w", i, execErr)
 		}
 
-		globalPos, err := result.LastInsertId()
+		var globalPos int64
+		globalPos, err = result.LastInsertId()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get last insert id: %w", err)
 		}

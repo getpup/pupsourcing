@@ -1,6 +1,7 @@
 package es
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -70,15 +71,9 @@ func TestExpectedVersion_Exact(t *testing.T) {
 			if ev.Value() != tt.version {
 				t.Errorf("Expected Value() to be %d, got %d", tt.version, ev.Value())
 			}
-			expectedStr := "Exact(" + string(rune(tt.version+'0')) + ")"
-			if tt.version >= 10 {
-				expectedStr = "Exact(" + string(rune(tt.version/10+'0')) + string(rune(tt.version%10+'0')) + ")"
-			}
-			if tt.version >= 100 {
-				expectedStr = "Exact(" + string(rune(tt.version/100+'0')) + string(rune((tt.version/10)%10+'0')) + string(rune(tt.version%10+'0')) + ")"
-			}
+			expectedStr := fmt.Sprintf("Exact(%d)", tt.version)
 			if ev.String() != expectedStr {
-				t.Errorf("Expected String() to match pattern 'Exact(%d)', got '%s'", tt.version, ev.String())
+				t.Errorf("Expected String() to be '%s', got '%s'", expectedStr, ev.String())
 			}
 		})
 	}

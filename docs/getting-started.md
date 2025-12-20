@@ -117,7 +117,7 @@ ctx := context.Background()
 tx, _ := db.BeginTx(ctx, nil)
 defer tx.Rollback()
 
-positions, err := store.Append(ctx, tx, events)
+positions, err := store.Append(ctx, tx, es.NoStream(), events)
 if err != nil {
     log.Fatal(err)
 }
@@ -225,13 +225,13 @@ events := []es.Event{
 }
 
 // Both events appended atomically
-positions, err := store.Append(ctx, tx, events)
+positions, err := store.Append(ctx, tx, es.NoStream(), events)
 ```
 
 ### Handling Version Conflicts
 
 ```go
-positions, err := store.Append(ctx, tx, events)
+positions, err := store.Append(ctx, tx, es.Exact(currentVersion), events)
 if errors.Is(err, store.ErrOptimisticConcurrency) {
     // Another transaction modified this aggregate
     // Retry the entire operation
@@ -275,7 +275,7 @@ Verify migrations were applied:
 Check transaction was committed:
 ```go
 tx, _ := db.BeginTx(ctx, nil)
-store.Append(ctx, tx, events)
+store.Append(ctx, tx, es.NoStream(), events)
 tx.Commit() // Don't forget this!
 ```
 

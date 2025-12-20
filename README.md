@@ -62,7 +62,7 @@ store := postgres.NewStore(postgres.DefaultStoreConfig())
 // Create event
 event := es.Event{
     AggregateType: "User",
-    AggregateID:   uuid.New(),
+    AggregateID:   uuid.New().String(),  // String-based ID for flexibility
     EventID:       uuid.New(),
     EventType:     "UserCreated",
     EventVersion:  1,
@@ -71,9 +71,10 @@ event := es.Event{
     CreatedAt:     time.Now(),
 }
 
-// Append within transaction
+// Append within transaction with optimistic concurrency control
 tx, _ := db.BeginTx(ctx, nil)
-positions, err := store.Append(ctx, tx, []es.Event{event})
+// Use NoStream() for creating a new aggregate
+positions, err := store.Append(ctx, tx, es.NoStream(), []es.Event{event})
 if err != nil {
     tx.Rollback()
     log.Fatal(err)
@@ -85,7 +86,7 @@ tx.Commit()
 
 ```go
 // Read all events for an aggregate
-aggregateID := uuid.MustParse("...")
+aggregateID := uuid.New().String()
 events, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
 
 // Read from a specific version

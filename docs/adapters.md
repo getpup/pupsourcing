@@ -30,7 +30,7 @@ This design maintains database-agnostic application code and ensures consistent 
 | Field | Type | Purpose |
 |-------|------|---------|
 | `global_position` | `BIGSERIAL` | Auto-incrementing, globally ordered |
-| `aggregate_id` | `UUID` | Native UUID storage |
+| `aggregate_id` | `TEXT` | String-based aggregate identifier (UUIDs, emails, custom IDs) |
 | `event_id` | `UUID` | Unique event identifier |
 | `payload` | `BYTEA` | Binary event data |
 | `metadata` | `JSONB` | Queryable structured metadata |
@@ -63,7 +63,7 @@ store := postgres.NewStore(postgres.DefaultStoreConfig())
 // Use with *sql.DB or *sql.Tx
 db, _ := sql.Open("postgres", connString)
 tx, _ := db.BeginTx(ctx, nil)
-positions, err := store.Append(ctx, tx, events)
+positions, err := store.Append(ctx, tx, es.NoStream(), events)
 tx.Commit()
 ```
 err := migrations.GeneratePostgres(&config)
@@ -120,7 +120,7 @@ err := migrations.GeneratePostgres(&config)
 - **Write concurrency**: Limited to one writer at a time (even with WAL mode)
 - **Network access**: Requires file system access, no network protocol
 - **Scalability**: Best for single-instance deployments
-- **UUID storage**: Stored as TEXT (36 bytes) vs BINARY(16) in MySQL
+- **Aggregate ID storage**: Stored as TEXT (36+ bytes for UUIDs, suitable for all string identifiers)
 
 #### Example Usage
 
@@ -141,7 +141,7 @@ db.Exec("PRAGMA journal_mode = WAL;")
 
 // Use with transactions
 tx, _ := db.BeginTx(ctx, nil)
-positions, err := store.Append(ctx, tx, events)
+positions, err := store.Append(ctx, tx, es.NoStream(), events)
 tx.Commit()
 ```
 
@@ -183,7 +183,7 @@ err := migrations.GenerateSQLite(&config)
 | Field | MySQL Type | Notes |
 |-------|-----------|-------|
 | `global_position` | `BIGINT AUTO_INCREMENT` | Auto-incrementing primary key |
-| `aggregate_id` | `BINARY(16)` | UUID stored as 16-byte binary (space efficient) |
+| `aggregate_id` | `VARCHAR(255)` | String-based aggregate identifier (UUIDs, emails, custom IDs) |
 | `event_id` | `BINARY(16)` | UUID stored as 16-byte binary with unique constraint |
 | `payload` | `BLOB` | Binary data, supports any serialization format |
 | `metadata` | `JSON` | Native JSON type with validation |
@@ -191,11 +191,11 @@ err := migrations.GenerateSQLite(&config)
 
 #### Unique Features
 
-- **Efficient UUID storage**: `BINARY(16)` uses half the space of TEXT
 - **JSON functions**: Rich set of JSON query and manipulation functions
 - **Replication**: Built-in master-slave and group replication
 - **Galera Cluster**: Multi-master synchronous replication
 - **InnoDB**: Row-level locking for better concurrency
+- **Flexible Identifiers**: Supports UUID strings, emails, and custom aggregate IDs
 
 #### Best For
 
@@ -209,7 +209,6 @@ err := migrations.GenerateSQLite(&config)
 
 - **Statement separation**: Requires executing SQL statements one at a time (no multi-statement exec)
 - **JSON indexing**: Less flexible than PostgreSQL's JSONB
-- **UUID conversion**: Requires binary conversion (handled by adapter)
 
 #### Example Usage
 
@@ -228,7 +227,7 @@ db, _ := sql.Open("mysql", dsn)
 
 // Use with transactions
 tx, _ := db.BeginTx(ctx, nil)
-positions, err := store.Append(ctx, tx, events)
+positions, err := store.Append(ctx, tx, es.NoStream(), events)
 tx.Commit()
 ```
 
@@ -256,7 +255,8 @@ err := migrations.GenerateMySQL(&config)
 | **Production Ready** | ✅ | ⚠️ Limited | ✅ |
 | **Server Required** | Yes | No (embedded) | Yes |
 | **Concurrent Writes** | Excellent | Limited | Excellent |
-| **UUID Storage** | Native (16 bytes) | TEXT (36 bytes) | BINARY (16 bytes) |
+| **Aggregate ID** | TEXT | TEXT | VARCHAR(255) |
+| **Event ID** | UUID (16 bytes) | TEXT (36 bytes) | BINARY (16 bytes) |
 | **JSON Support** | JSONB (indexed) | TEXT + functions | JSON type |
 | **Timestamp Precision** | Microseconds | Seconds | Microseconds |
 | **Setup Complexity** | Medium | Minimal | Medium |
@@ -283,7 +283,7 @@ import "github.com/getpup/pupsourcing/es/adapters/mysql"
 store := mysql.NewStore(mysql.DefaultStoreConfig())
 
 // All adapters support the same operations
-positions, err := store.Append(ctx, tx, events)
+positions, err := store.Append(ctx, tx, es.NoStream(), events)
 events, err := store.ReadEvents(ctx, tx, fromPosition, limit)
 events, err := store.ReadAggregateStream(ctx, tx, aggregateType, aggregateID, nil, nil)
 ```

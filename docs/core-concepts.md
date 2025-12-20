@@ -250,12 +250,12 @@ pupsourcing uses optimistic concurrency control to prevent conflicts.
 ```go
 // Transaction 1
 tx1, _ := db.BeginTx(ctx, nil)
-store.Append(ctx, tx1, events1)  // Success
+store.Append(ctx, tx1, es.Exact(currentVersion), events1)  // Success
 tx1.Commit()
 
 // Transaction 2 (concurrent)
 tx2, _ := db.BeginTx(ctx, nil)
-store.Append(ctx, tx2, events2)  // ErrOptimisticConcurrency
+store.Append(ctx, tx2, es.Exact(currentVersion), events2)  // ErrOptimisticConcurrency
 tx2.Rollback()
 ```
 
@@ -270,7 +270,7 @@ tx2.Rollback()
 ```go
 for retries := 0; retries < maxRetries; retries++ {
     tx, _ := db.BeginTx(ctx, nil)
-    _, err := store.Append(ctx, tx, events)
+    _, err := store.Append(ctx, tx, es.Exact(currentVersion), events)
     
     if errors.Is(err, store.ErrOptimisticConcurrency) {
         tx.Rollback()
@@ -365,7 +365,7 @@ tx, _ := db.BeginTx(ctx, nil)
 defer tx.Rollback()
 
 // Library uses your transaction
-positions, err := store.Append(ctx, tx, events)
+positions, err := store.Append(ctx, tx, es.NoStream(), events)
 if err != nil {
     return err  // Rollback happens in defer
 }
@@ -453,7 +453,7 @@ No external coordination needed. Database provides:
 ```go
 // Write event
 tx, _ := db.BeginTx(ctx, nil)
-store.Append(ctx, tx, events)
+store.Append(ctx, tx, es.NoStream(), events)
 
 // Read immediately (same transaction)
 aggregate, _ := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
@@ -517,19 +517,19 @@ func (p *OrderSagaProjection) Handle(ctx context.Context, tx es.DBTX, event *es.
     case "OrderPlaced":
         // Reserve inventory
         inventoryEvent := /* ... */
-        _, err := p.store.Append(ctx, tx, []es.Event{inventoryEvent})
+        _, err := p.store.Append(ctx, tx, es.NoStream(), []es.Event{inventoryEvent})
         return err
     
     case "InventoryReserved":
         // Charge payment
         paymentEvent := /* ... */
-        _, err := p.store.Append(ctx, tx, []es.Event{paymentEvent})
+        _, err := p.store.Append(ctx, tx, es.NoStream(), []es.Event{paymentEvent})
         return err
     
     case "PaymentSucceeded":
         // Ship order
         shippingEvent := /* ... */
-        _, err := p.store.Append(ctx, tx, []es.Event{shippingEvent})
+        _, err := p.store.Append(ctx, tx, es.NoStream(), []es.Event{shippingEvent})
         return err
     }
     return nil

@@ -21,8 +21,8 @@ Projections transform events into read models. Think of them as materialized vie
 ```
 Events:               Projection:           Read Model:
   UserCreated    →    Update database   →  users table
-  EmailVerified  →    Send notification →  email sent
-  UserDeactivated →   Update cache      →  cache updated
+  UserUpdated    →    Update database   →  users table updated
+  UserDeactivated →   Update database   →  users table updated
 ```
 
 ### Why Projections?
@@ -30,7 +30,7 @@ Events:               Projection:           Read Model:
 - **CQRS**: Separate read and write models
 - **Performance**: Optimized read models for queries
 - **Flexibility**: Multiple views of the same data
-- **Integration**: Trigger side effects (emails, webhooks)
+- **Denormalization**: Pre-computed aggregations and joins
 
 ## Basic Projections
 
@@ -271,10 +271,10 @@ Run each projection in its own process for better isolation:
 ./myapp projection --name=user_counter
 
 # Process 2
-./myapp projection --name=email_sender
+./myapp projection --name=analytics
 
 # Process 3
-./myapp projection --name=analytics
+./myapp projection --name=order_summary
 ```
 
 ### Pattern 2: Same Process

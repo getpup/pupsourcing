@@ -183,19 +183,24 @@ The `aggregate_heads` table tracks the current version of each aggregate, provid
 Projections process events sequentially and track progress via checkpoints. They automatically resume from the last processed position.
 
 ```go
-type EmailNotificationProjection struct {
-    mailer *Mailer
+type UserReadModelProjection struct {
+    db *sql.DB
 }
 
-func (p *EmailNotificationProjection) Name() string {
-    return "email_notifications"
+func (p *UserReadModelProjection) Name() string {
+    return "user_read_model"
 }
 
-func (p *EmailNotificationProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *UserReadModelProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
     if event.EventType == "UserCreated" {
         var user UserCreated
         json.Unmarshal(event.Payload, &user)
-        return p.mailer.SendWelcome(user.Email)
+        
+        // Insert into read model table
+        _, err := tx.ExecContext(ctx,
+            "INSERT INTO user_read_model (id, name, email, created_at) VALUES ($1, $2, $3, $4)",
+            event.AggregateID, user.Name, user.Email, event.CreatedAt)
+        return err
     }
     return nil
 }
@@ -400,7 +405,7 @@ Comprehensive documentation is available in the [`docs/`](./docs) directory:
 - **[Getting Started](./docs/getting-started.md)** - Installation, setup, and first steps
 - **[Core Concepts](./docs/core-concepts.md)** - Understanding event sourcing with pupsourcing
 - **[Projections & Scaling](./docs/scaling.md)** - Advanced projection patterns and horizontal scaling
-- **[Industry Alignment](./docs/industry-alignment.md)** - Comparison with Kafka, EventStoreDB, Axon, Watermill
+- **[Industry Alignment](./docs/industry-alignment.md)** - Comparison with Kafka, EventStoreDB, Axon
 - **[Deployment Guide](./docs/deployment.md)** - Production deployment patterns (coming soon)
 
 ## Examples

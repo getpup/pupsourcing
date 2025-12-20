@@ -399,7 +399,7 @@ pupsourcing is a library. You call it; it doesn't call you.
 **Library style (pupsourcing):**
 ```go
 // You're in control
-processor := projection.NewProcessor(db, store, config)
+processor := projection.NewProcessor(db, store, &config)
 err := processor.Run(ctx, projection)
 ```
 

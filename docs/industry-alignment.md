@@ -40,10 +40,11 @@ consumer := kafka.NewConsumer(&kafka.ConfigMap{
 })
 
 // pupsourcing projection (similar concept)
-processor := projection.NewProcessor(db, store, projection.ProcessorConfig{
+config := projection.ProcessorConfig{
     PartitionKey: 0,           // Like consumer instance
     TotalPartitions: 4,        // Like partition count
-})
+}
+processor := projection.NewProcessor(db, store, &config)
 ```
 
 ### Key Differences
@@ -96,7 +97,7 @@ var subscription = await client.SubscribeToAllAsync(
 );
 
 // pupsourcing projection (similar)
-processor := projection.NewProcessor(db, store, config)
+processor := projection.NewProcessor(db, store, &config)
 err := processor.Run(ctx, projection)
 ```
 

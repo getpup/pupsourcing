@@ -134,7 +134,8 @@ func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event es.Persiste
 
 // Run projection
 proj := &MyProjection{}
-processor := projection.NewProcessor(db, store, projection.DefaultProcessorConfig())
+config := projection.DefaultProcessorConfig()
+processor := projection.NewProcessor(db, store, &config)
 
 // Run until context is cancelled
 err := processor.Run(ctx, proj)
@@ -216,7 +217,7 @@ config := projection.DefaultProcessorConfig()
 config.TotalPartitions = 4  // Total number of workers
 config.PartitionKey = 0     // This worker's partition (0-3)
 
-processor := projection.NewProcessor(db, store, config)
+processor := projection.NewProcessor(db, store, &config)
 ```
 
 Events for the same aggregate always go to the same partition, maintaining ordering guarantees.
@@ -254,7 +255,7 @@ func main() {
     config.PartitionKey = *partitionKey
     config.TotalPartitions = *totalPartitions
     
-    processor := projection.NewProcessor(db, store, config)
+    processor := projection.NewProcessor(db, store, &config)
     err := processor.Run(ctx, projection)
 }
 ```
@@ -368,7 +369,7 @@ store := postgres.NewStore(config)
 ```go
 config := projection.DefaultProcessorConfig()
 config.Logger = myLogger  // Your logger implementation
-processor := projection.NewProcessor(db, store, config)
+processor := projection.NewProcessor(db, store, &config)
 
 // Now projection operations will log:
 // - Processor start/stop events

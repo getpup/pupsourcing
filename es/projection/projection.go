@@ -80,6 +80,10 @@ type ProcessorConfig struct {
 
 	// TotalPartitions is the total number of processor instances
 	TotalPartitions int
+
+	// Logger is an optional logger for observability.
+	// If nil, logging is disabled (zero overhead).
+	Logger es.Logger
 }
 
 // DefaultProcessorConfig returns the default configuration.
@@ -91,6 +95,7 @@ func DefaultProcessorConfig() ProcessorConfig {
 		PartitionKey:      0,
 		TotalPartitions:   1,
 		PartitionStrategy: HashPartitionStrategy{},
+		Logger:            nil, // No logging by default
 	}
 }
 
@@ -114,9 +119,22 @@ func NewProcessor(db *sql.DB, eventReader store.EventReader, config ProcessorCon
 // It reads events in batches, applies the partition filter, and updates checkpoints.
 // Returns ErrProjectionStopped if the projection handler returns an error.
 func (p *Processor) Run(ctx context.Context, projection Projection) error {
+	if p.config.Logger != nil {
+		p.config.Logger.Info(ctx, "projection processor starting",
+			"projection", projection.Name(),
+			"partition_key", p.config.PartitionKey,
+			"total_partitions", p.config.TotalPartitions,
+			"batch_size", p.config.BatchSize)
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
+			if p.config.Logger != nil {
+				p.config.Logger.Info(ctx, "projection processor stopped",
+					"projection", projection.Name(),
+					"reason", ctx.Err())
+			}
 			return ctx.Err()
 		default:
 		}
@@ -127,6 +145,11 @@ func (p *Processor) Run(ctx context.Context, projection Projection) error {
 			if errors.Is(err, sql.ErrNoRows) || err.Error() == "no events in batch" {
 				// No events available, continue polling
 				continue
+			}
+			if p.config.Logger != nil {
+				p.config.Logger.Error(ctx, "projection processor error",
+					"projection", projection.Name(),
+					"error", err)
 			}
 			return fmt.Errorf("%w: %v", ErrProjectionStopped, err)
 		}
@@ -149,6 +172,13 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 		return fmt.Errorf("failed to get checkpoint: %w", err)
 	}
 
+	if p.config.Logger != nil {
+		p.config.Logger.Debug(ctx, "processing batch",
+			"projection", projection.Name(),
+			"checkpoint", checkpoint,
+			"batch_size", p.config.BatchSize)
+	}
+
 	// Read events
 	events, err := p.eventReader.ReadEvents(ctx, tx, checkpoint, p.config.BatchSize)
 	if err != nil {
@@ -161,6 +191,8 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 
 	// Process events with partition filter
 	var lastPosition int64
+	var processedCount int
+	var skippedCount int
 	for i := range events {
 		event := &events[i]
 		// Apply partition filter
@@ -170,16 +202,27 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 			p.config.TotalPartitions,
 		) {
 			lastPosition = event.GlobalPosition
+			skippedCount++
 			continue
 		}
 
 		// Handle event
 		handlerErr := projection.Handle(ctx, tx, event)
 		if handlerErr != nil {
+			if p.config.Logger != nil {
+				p.config.Logger.Error(ctx, "projection handler error",
+					"projection", projection.Name(),
+					"position", event.GlobalPosition,
+					"aggregate_type", event.AggregateType,
+					"aggregate_id", event.AggregateID,
+					"event_type", event.EventType,
+					"error", handlerErr)
+			}
 			return fmt.Errorf("projection handler error at position %d: %w", event.GlobalPosition, handlerErr)
 		}
 
 		lastPosition = event.GlobalPosition
+		processedCount++
 	}
 
 	// Update checkpoint
@@ -190,7 +233,19 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	if p.config.Logger != nil {
+		p.config.Logger.Debug(ctx, "batch processed",
+			"projection", projection.Name(),
+			"processed", processedCount,
+			"skipped", skippedCount,
+			"checkpoint", lastPosition)
+	}
+
+	return nil
 }
 
 func (p *Processor) getCheckpoint(ctx context.Context, tx es.DBTX, projectionName string) (int64, error) {

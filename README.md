@@ -20,6 +20,7 @@ A professional-grade Event Sourcing library for Go, designed with clean architec
 - ✅ **Projection System**: Pull-based event processing with checkpoints
 - ✅ **Horizontal Scaling**: Deterministic hash-based partitioning
 - ✅ **Migration Generation**: SQL migrations via `go generate`
+- ✅ **Observability Hooks**: Optional logging for debugging and monitoring
 - ✅ **Zero Dependencies**: Uses only Go standard library (plus database driver)
 
 ## Installation
@@ -333,6 +334,103 @@ config := projection.ProcessorConfig{
 }
 ```
 
+## Observability & Logging
+
+pupsourcing includes optional logging hooks for observability and debugging without forcing logging decisions or dependencies.
+
+### Logger Interface
+
+Implement the minimal `es.Logger` interface with your preferred logging library:
+
+```go
+type Logger interface {
+    Debug(ctx context.Context, msg string, keyvals ...interface{})
+    Info(ctx context.Context, msg string, keyvals ...interface{})
+    Error(ctx context.Context, msg string, keyvals ...interface{})
+}
+```
+
+### Injecting Loggers
+
+**Event Store Logging:**
+```go
+config := postgres.DefaultStoreConfig()
+config.Logger = myLogger  // Your logger implementation
+store := postgres.NewStore(config)
+
+// Now store operations will log:
+// - Append operations (with event counts, aggregate info, versions, positions)
+// - Read operations (with query parameters and result counts)
+// - Optimistic concurrency conflicts
+```
+
+**Projection Logging:**
+```go
+config := projection.DefaultProcessorConfig()
+config.Logger = myLogger  // Your logger implementation
+processor := projection.NewProcessor(db, store, config)
+
+// Now projection operations will log:
+// - Processor start/stop events
+// - Batch processing progress (processed/skipped counts)
+// - Checkpoint updates
+// - Handler errors with event details
+```
+
+### Zero-Overhead When Disabled
+
+If you don't set a logger, logging is disabled with **zero overhead**:
+
+```go
+// No logger = no logging overhead
+config := postgres.DefaultStoreConfig()  // Logger is nil by default
+store := postgres.NewStore(config)
+```
+
+The library checks `if logger != nil` before any logging operations, ensuring no performance impact when logging is disabled.
+
+### Integration Examples
+
+**With Standard Library log:**
+```go
+type StdLogger struct{}
+
+func (l *StdLogger) Debug(ctx context.Context, msg string, keyvals ...interface{}) {
+    log.Printf("[DEBUG] %s %v", msg, keyvals)
+}
+
+func (l *StdLogger) Info(ctx context.Context, msg string, keyvals ...interface{}) {
+    log.Printf("[INFO] %s %v", msg, keyvals)
+}
+
+func (l *StdLogger) Error(ctx context.Context, msg string, keyvals ...interface{}) {
+    log.Printf("[ERROR] %s %v", msg, keyvals)
+}
+```
+
+**With slog (Go 1.21+):**
+```go
+type SlogLogger struct {
+    logger *slog.Logger
+}
+
+func (l *SlogLogger) Debug(ctx context.Context, msg string, keyvals ...interface{}) {
+    l.logger.DebugContext(ctx, msg, keyvals...)
+}
+
+func (l *SlogLogger) Info(ctx context.Context, msg string, keyvals ...interface{}) {
+    l.logger.InfoContext(ctx, msg, keyvals...)
+}
+
+func (l *SlogLogger) Error(ctx context.Context, msg string, keyvals ...interface{}) {
+    l.logger.ErrorContext(ctx, msg, keyvals...)
+}
+```
+
+**With zap, zerolog, logrus:** Similar pattern - wrap your logger with the `es.Logger` interface.
+
+See the [with-logging example](./examples/with-logging/) for a complete demonstration.
+
 ## Testing
 
 ### Unit Tests
@@ -418,6 +516,7 @@ Complete, runnable examples demonstrating various patterns:
 - **[Multiple Projections](./examples/multiple-projections/)** - Running different projections concurrently
 - **[Scaling](./examples/scaling/)** - Dynamic scaling from 1→N workers
 - **[Stop/Resume](./examples/stop-resume/)** - Checkpoint reliability demonstration
+- **[With Logging](./examples/with-logging/)** - Observability and debugging with custom loggers
 - **[Basic](./examples/basic/)** - Original simple example
 
 See the [examples README](./examples/README.md) for detailed instructions.
@@ -500,11 +599,12 @@ Current scope (v1):
 - ✅ Read API for aggregate streams
 - ✅ Projection orchestration tooling (runner package)
 - ✅ Comprehensive documentation and examples
+- ✅ Observability hooks and logging
 
 Future considerations:
 - Snapshots for long-lived aggregates
 - Additional adapters (MySQL, SQLite)
-- Observability hooks
+- Metrics and instrumentation hooks
 
 ## Contributing
 

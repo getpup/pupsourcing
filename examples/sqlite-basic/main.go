@@ -162,7 +162,7 @@ func readAllEvents(ctx context.Context, db *sql.DB, store *sqlite.Store) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	//nolint:errcheck // cleanup
+	//nolint:errcheck // Rollback is allowed to fail in defer
 	defer tx.Rollback()
 
 	events, err := store.ReadEvents(ctx, tx, 0, 100)
@@ -171,6 +171,7 @@ func readAllEvents(ctx context.Context, db *sql.DB, store *sqlite.Store) error {
 	}
 
 	log.Printf("Found %d events:", len(events))
+	//nolint:gocritic // Iterating by value is acceptable for example code
 	for _, event := range events {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
@@ -188,6 +189,7 @@ func readAggregateStream(ctx context.Context, db *sql.DB, store *sqlite.Store, a
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+	//nolint:errcheck // Rollback is allowed to fail in defer
 	defer tx.Rollback()
 
 	events, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
@@ -196,6 +198,7 @@ func readAggregateStream(ctx context.Context, db *sql.DB, store *sqlite.Store, a
 	}
 
 	log.Printf("Found %d events for aggregate %s:", len(events), aggregateID)
+	//nolint:gocritic // Iterating by value is acceptable for example code
 	for _, event := range events {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {

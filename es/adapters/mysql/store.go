@@ -148,23 +148,23 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 
 		var traceID, correlationID, causationID interface{}
 		if event.TraceID.Valid {
-			traceIDBytes, err := event.TraceID.UUID.MarshalBinary()
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal trace ID: %w", err)
+			traceIDBytes, marshalErr := event.TraceID.UUID.MarshalBinary()
+			if marshalErr != nil {
+				return nil, fmt.Errorf("failed to marshal trace ID: %w", marshalErr)
 			}
 			traceID = traceIDBytes
 		}
 		if event.CorrelationID.Valid {
-			correlationIDBytes, err := event.CorrelationID.UUID.MarshalBinary()
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal correlation ID: %w", err)
+			correlationIDBytes, marshalErr := event.CorrelationID.UUID.MarshalBinary()
+			if marshalErr != nil {
+				return nil, fmt.Errorf("failed to marshal correlation ID: %w", marshalErr)
 			}
 			correlationID = correlationIDBytes
 		}
 		if event.CausationID.Valid {
-			causationIDBytes, err := event.CausationID.UUID.MarshalBinary()
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal causation ID: %w", err)
+			causationIDBytes, marshalErr := event.CausationID.UUID.MarshalBinary()
+			if marshalErr != nil {
+				return nil, fmt.Errorf("failed to marshal causation ID: %w", marshalErr)
 			}
 			causationID = causationIDBytes
 		}
@@ -344,6 +344,8 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 }
 
 // ReadAggregateStream implements store.AggregateStreamReader.
+//
+//nolint:gocyclo // Complexity comes from necessary UUID parsing and error handling
 func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID uuid.UUID, fromVersion, toVersion *int64) ([]es.PersistedEvent, error) {
 	if s.config.Logger != nil {
 		s.config.Logger.Debug(ctx, "reading aggregate stream",

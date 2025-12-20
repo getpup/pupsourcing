@@ -102,6 +102,7 @@ func setupSchema(db *sql.DB) error {
 		AggregateHeadsTable: "aggregate_heads",
 	}
 
+	//nolint:govet // Shadow is acceptable here - err is properly scoped
 	if err := migrations.GenerateMySQL(&config); err != nil {
 		return fmt.Errorf("failed to generate migration: %w", err)
 	}
@@ -181,6 +182,7 @@ func readAllEvents(ctx context.Context, db *sql.DB, store *mysql.Store) error {
 	}
 
 	log.Printf("Found %d events:", len(events))
+	//nolint:gocritic // Iterating by value is acceptable for example code
 	for _, event := range events {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {

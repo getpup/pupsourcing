@@ -194,7 +194,7 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 
 	// First, append an event successfully to establish version 1
 	tx1, _ := db.BeginTx(ctx, nil)
-	_, err := str.Append(ctx, tx1, []es.Event{event1})
+	_, err := str.Append(ctx, tx1, es.NoStream(), []es.Event{event1})
 	if err != nil {
 		t.Fatalf("First append failed: %v", err)
 	}
@@ -250,8 +250,8 @@ func TestReadEvents(t *testing.T) {
 	pgStore := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Append some events
-	aggregateID1 := uuid.New()
-	aggregateID2 := uuid.New()
+	aggregateID1 := uuid.New().String()
+	aggregateID2 := uuid.New().String()
 
 	events := []es.Event{
 		{
@@ -319,7 +319,7 @@ func TestReadEvents_Pagination(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		event := es.Event{
 			AggregateType: "TestAggregate",
-			AggregateID:   uuid.New(),
+			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     fmt.Sprintf("Event%d", i),
 			EventVersion:  1,
@@ -329,7 +329,7 @@ func TestReadEvents_Pagination(t *testing.T) {
 		}
 
 		tx, _ := db.BeginTx(ctx, nil)
-		_, err := pgStore.Append(ctx, tx, []es.Event{event})
+		_, err := pgStore.Append(ctx, tx, es.Any(), []es.Event{event})
 		if err != nil {
 			t.Fatalf("Failed to append event: %v", err)
 		}
@@ -408,7 +408,7 @@ func TestAggregateVersionTracking(t *testing.T) {
 	}
 
 	tx1, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx1, events1)
+	_, err := store.Append(ctx, tx1, es.Any(), events1)
 	if err != nil {
 		t.Fatalf("First append failed: %v", err)
 	}
@@ -445,7 +445,7 @@ func TestAggregateVersionTracking(t *testing.T) {
 	}
 
 	tx2, _ := db.BeginTx(ctx, nil)
-	_, err = store.Append(ctx, tx2, events2)
+	_, err = store.Append(ctx, tx2, es.Any(), events2)
 	if err != nil {
 		t.Fatalf("Second append failed: %v", err)
 	}
@@ -512,8 +512,8 @@ func TestAggregateVersionTracking_MultipleAggregates(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Create events for two different aggregates
-	aggregate1 := uuid.New()
-	aggregate2 := uuid.New()
+	aggregate1 := uuid.New().String()
+	aggregate2 := uuid.New().String()
 
 	events1 := []es.Event{
 		{
@@ -543,7 +543,7 @@ func TestAggregateVersionTracking_MultipleAggregates(t *testing.T) {
 
 	// Append events for both aggregates
 	tx1, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx1, events1)
+	_, err := store.Append(ctx, tx1, es.Any(), events1)
 	if err != nil {
 		t.Fatalf("Failed to append events for aggregate1: %v", err)
 	}
@@ -552,7 +552,7 @@ func TestAggregateVersionTracking_MultipleAggregates(t *testing.T) {
 	}
 
 	tx2, _ := db.BeginTx(ctx, nil)
-	_, err = store.Append(ctx, tx2, events2)
+	_, err = store.Append(ctx, tx2, es.Any(), events2)
 	if err != nil {
 		t.Fatalf("Failed to append events for aggregate2: %v", err)
 	}
@@ -925,7 +925,7 @@ func TestReadAggregateStream_EmptyResult(t *testing.T) {
 	tx, _ := db.BeginTx(ctx, nil)
 	defer tx.Rollback()
 
-	nonExistentID := uuid.New()
+	nonExistentID := uuid.New().String()
 	readEvents, err := store.ReadAggregateStream(ctx, tx, "TestAggregate", nonExistentID, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to read aggregate stream: %v", err)
@@ -946,8 +946,8 @@ func TestReadAggregateStream_MultipleAggregates(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Create events for two aggregates
-	aggregate1 := uuid.New()
-	aggregate2 := uuid.New()
+	aggregate1 := uuid.New().String()
+	aggregate2 := uuid.New().String()
 
 	events1 := []es.Event{
 		{
@@ -986,14 +986,14 @@ func TestReadAggregateStream_MultipleAggregates(t *testing.T) {
 	}
 
 	tx1, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx1, events1)
+	_, err := store.Append(ctx, tx1, es.Any(), events1)
 	if err != nil {
 		t.Fatalf("Failed to append events for aggregate1: %v", err)
 	}
 	tx1.Commit()
 
 	tx2, _ := db.BeginTx(ctx, nil)
-	_, err = store.Append(ctx, tx2, events2)
+	_, err = store.Append(ctx, tx2, es.Any(), events2)
 	if err != nil {
 		t.Fatalf("Failed to append events for aggregate2: %v", err)
 	}
@@ -1062,14 +1062,14 @@ func TestReadAggregateStream_Ordering(t *testing.T) {
 	}
 
 	tx1, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx1, events1)
+	_, err := store.Append(ctx, tx1, es.Any(), events1)
 	if err != nil {
 		t.Fatalf("Failed to append first batch: %v", err)
 	}
 	tx1.Commit()
 
 	// Append event for different aggregate in between
-	otherAggregate := uuid.New()
+	otherAggregate := uuid.New().String()
 	eventsOther := []es.Event{
 		{
 			AggregateType: "OtherAggregate",
@@ -1084,7 +1084,7 @@ func TestReadAggregateStream_Ordering(t *testing.T) {
 	}
 
 	tx2, _ := db.BeginTx(ctx, nil)
-	_, err = store.Append(ctx, tx2, eventsOther)
+	_, err = store.Append(ctx, tx2, es.Any(), eventsOther)
 	if err != nil {
 		t.Fatalf("Failed to append other event: %v", err)
 	}
@@ -1105,7 +1105,7 @@ func TestReadAggregateStream_Ordering(t *testing.T) {
 	}
 
 	tx3, _ := db.BeginTx(ctx, nil)
-	_, err = store.Append(ctx, tx3, events2)
+	_, err = store.Append(ctx, tx3, es.Any(), events2)
 	if err != nil {
 		t.Fatalf("Failed to append second batch: %v", err)
 	}

@@ -225,7 +225,7 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 
 	// First, append an event successfully to establish version 1
 	tx1, _ := db.BeginTx(ctx, nil)
-	_, err := str.Append(ctx, tx1, []es.Event{event1})
+	_, err := str.Append(ctx, tx1, es.NoStream(), []es.Event{event1})
 	if err != nil {
 		t.Fatalf("First append failed: %v", err)
 	}
@@ -248,8 +248,7 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 	tx2, _ := db.BeginTx(ctx, nil)
 	defer tx2.Rollback() //nolint:errcheck // cleanup
 
-	// Convert IDs to binary
-	aggIDBytes, _ := event2.AggregateID.MarshalBinary()
+	// Convert EventID to binary
 	eventIDBytes, _ := event2.EventID.MarshalBinary()
 
 	// Manually insert with version=1 (which already exists) to trigger unique constraint violation
@@ -259,7 +258,7 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 			event_id, event_type, event_version,
 			payload, metadata, created_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, event2.AggregateType, aggIDBytes, int64(1), // Use version 1 which already exists
+	`, event2.AggregateType, event2.AggregateID, int64(1), // Use version 1 which already exists
 		eventIDBytes, event2.EventType, event2.EventVersion,
 		event2.Payload, event2.Metadata, event2.CreatedAt)
 
@@ -284,8 +283,8 @@ func TestReadEvents(t *testing.T) {
 	mysqlStore := mysql.NewStore(mysql.DefaultStoreConfig())
 
 	// Append some events
-	aggregateID1 := uuid.New()
-	aggregateID2 := uuid.New()
+	aggregateID1 := uuid.New().String()
+	aggregateID2 := uuid.New().String()
 
 	events := []es.Event{
 		{
@@ -311,11 +310,11 @@ func TestReadEvents(t *testing.T) {
 	}
 
 	tx, _ := db.BeginTx(ctx, nil)
-	_, err := mysqlStore.Append(ctx, tx, events[:1])
+	_, err := mysqlStore.Append(ctx, tx, es.Any(), events[:1])
 	if err != nil {
 		t.Fatalf("Failed to append first event: %v", err)
 	}
-	_, err = mysqlStore.Append(ctx, tx, events[1:])
+	_, err = mysqlStore.Append(ctx, tx, es.Any(), events[1:])
 	if err != nil {
 		t.Fatalf("Failed to append second event: %v", err)
 	}
@@ -529,7 +528,7 @@ func TestAggregateVersionTracking(t *testing.T) {
 	}
 
 	tx1, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx1, events1)
+	_, err := store.Append(ctx, tx1, es.Any(), events1)
 	if err != nil {
 		t.Fatalf("First append failed: %v", err)
 	}
@@ -538,13 +537,12 @@ func TestAggregateVersionTracking(t *testing.T) {
 	}
 
 	// Verify aggregate_heads has correct version
-	aggIDBytes, _ := aggregateID.MarshalBinary()
 	var aggVersion int64
 	err = db.QueryRowContext(ctx, `
 		SELECT aggregate_version 
 		FROM aggregate_heads 
 		WHERE aggregate_type = ? AND aggregate_id = ?
-	`, "TestAggregate", aggIDBytes).Scan(&aggVersion)
+	`, "TestAggregate", aggregateID).Scan(&aggVersion)
 	if err != nil {
 		t.Fatalf("Failed to query aggregate_heads: %v", err)
 	}
@@ -567,7 +565,7 @@ func TestAggregateVersionTracking(t *testing.T) {
 	}
 
 	tx2, _ := db.BeginTx(ctx, nil)
-	_, err = store.Append(ctx, tx2, events2)
+	_, err = store.Append(ctx, tx2, es.Any(), events2)
 	if err != nil {
 		t.Fatalf("Second append failed: %v", err)
 	}
@@ -580,7 +578,7 @@ func TestAggregateVersionTracking(t *testing.T) {
 		SELECT aggregate_version 
 		FROM aggregate_heads 
 		WHERE aggregate_type = ? AND aggregate_id = ?
-	`, "TestAggregate", aggIDBytes).Scan(&aggVersion)
+	`, "TestAggregate", aggregateID).Scan(&aggVersion)
 	if err != nil {
 		t.Fatalf("Failed to query aggregate_heads: %v", err)
 	}

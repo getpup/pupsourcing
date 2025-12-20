@@ -323,7 +323,7 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 
 		// Aggregate ID is now a string
 		e.AggregateID = aggregateID
-		
+
 		// Parse EventID
 		e.EventID, err = uuid.Parse(eventID)
 		if err != nil {
@@ -446,7 +446,7 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 
 		// Aggregate ID is now a string
 		e.AggregateID = aggID
-		
+
 		// Parse EventID
 		e.EventID, err = uuid.Parse(eventID)
 		if err != nil {

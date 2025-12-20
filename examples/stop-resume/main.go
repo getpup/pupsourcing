@@ -59,7 +59,7 @@ func (p *ReliableProjection) Handle(_ context.Context, _ es.DBTX, event *es.Pers
 		p.lastEventTime = event.CreatedAt
 
 		log.Printf("✓ Processed event #%d (position: %d, aggregate: %s): %s",
-			p.count, event.GlobalPosition, event.AggregateID.String()[:8], payload.Name)
+			p.count, event.GlobalPosition, event.AggregateID[:8], payload.Name)
 	}
 	return nil
 }
@@ -124,7 +124,7 @@ func handleAppendMode(ctx context.Context, db *sql.DB, store *postgres.Store, nu
 		events := []es.Event{
 			{
 				AggregateType: "User",
-				AggregateID:   uuid.New(),
+				AggregateID:   uuid.New().String(),
 				EventID:       uuid.New(),
 				EventType:     "UserCreated",
 				EventVersion:  1,
@@ -139,7 +139,7 @@ func handleAppendMode(ctx context.Context, db *sql.DB, store *postgres.Store, nu
 			log.Fatalf("Failed to begin tx: %v", err)
 		}
 
-		positions, err := store.Append(ctx, tx, events)
+		positions, err := store.Append(ctx, tx, es.NoStream(), events)
 		if err != nil {
 			//nolint:errcheck // Rollback error ignored: transaction already failed
 			tx.Rollback()

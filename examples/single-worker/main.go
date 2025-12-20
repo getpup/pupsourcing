@@ -131,7 +131,7 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 		events := []es.Event{
 			{
 				AggregateType: "User",
-				AggregateID:   uuid.New(),
+				AggregateID:   uuid.New().String(),
 				EventID:       uuid.New(),
 				EventType:     "UserCreated",
 				EventVersion:  1,
@@ -146,7 +146,7 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 			return fmt.Errorf("failed to begin transaction: %w", err)
 		}
 
-		_, err = store.Append(ctx, tx, events)
+		_, err = store.Append(ctx, tx, es.NoStream(), events)
 		if err != nil {
 			//nolint:errcheck // Rollback error ignored: transaction already failed
 			tx.Rollback()

@@ -1,63 +1,48 @@
-# Projections & Scaling Guide
+# Projections & Scaling
 
-This guide covers everything you need to know about projections in pupsourcing, from basic concepts to production-scale deployments.
+Comprehensive guide to projections and horizontal scaling in pupsourcing.
 
 ## Table of Contents
 
-1. [What Are Projections?](#what-are-projections)
-2. [Basic Projections](#basic-projections)
+1. [Projections Overview](#projections-overview)
+2. [Basic Implementation](#basic-implementation)
 3. [Horizontal Scaling](#horizontal-scaling)
 4. [Partitioning Strategy](#partitioning-strategy)
-5. [Running Multiple Projections](#running-multiple-projections)
+5. [Multiple Projections](#multiple-projections)
 6. [Performance Tuning](#performance-tuning)
 7. [Production Patterns](#production-patterns)
 
-## What Are Projections?
+## Projections Overview
 
-Projections transform events into read models. Think of them as materialized views that are incrementally updated as events occur.
+Projections transform events into query-optimized read models, implementing the read side of CQRS (Command Query Responsibility Segregation).
 
-**Why separate read and write models?**
+### Purpose
 
-In event sourcing, the write side (event store) is optimized for appending events and maintaining consistency. But querying events directly is inefficient. Projections solve this by maintaining denormalized, query-optimized read models.
+Event stores are optimized for writes and consistency, not queries. Projections solve this by maintaining denormalized views optimized for specific query patterns.
 
-### Event Stream → Projection → Read Model
-
+**Flow:**
 ```
-Events:               Projection:           Read Model:
-  UserCreated    →    Update database   →  users table
-  UserUpdated    →    Update database   →  users table updated
-  UserDeactivated →   Update database   →  users table updated
+Events → Projection Handler → Read Model (optimized for queries)
 ```
 
-### Why Projections?
+### Benefits
 
-- **CQRS (Command Query Responsibility Segregation)**: Separate read and write models for different optimization goals. Write side focuses on consistency and domain logic. Read side focuses on query performance.
+- **Performance** - Pre-joined, denormalized data enables fast queries
+- **Flexibility** - Multiple read models from single event stream
+- **CQRS** - Separate optimization for reads and writes
+- **Scalability** - Independent scaling of read and write paths
 
-- **Performance**: Optimized read models for queries. Pre-join data, denormalize, create indexes. Your queries become simple `SELECT` statements instead of complex aggregations across events.
+### Use Cases
 
-- **Flexibility**: Multiple views of the same data. Need data in different formats for different UIs? Create multiple projections from the same events.
+E-commerce system example:
+- **Events**: `OrderPlaced`, `ItemAdded`, `PaymentProcessed`, `OrderShipped`
+- **Read Models**:
+  - `order_summary` - Fast order history lookups
+  - `inventory_count` - Real-time stock levels
+  - `user_order_stats` - Pre-computed customer metrics
+  - `revenue_by_day` - Aggregated analytics
 
-- **Denormalization**: Pre-computed aggregations and joins. Calculate totals, averages, and relationships once during projection, not on every query.
-
-**When to use projections:**
-- You need fast queries on event-sourced data
-- You need multiple views of the same data (web UI, mobile API, reports)
-- You need aggregations or complex queries
-- You want to optimize reads separately from writes
-
-**Real-world example:**
-
-Imagine an e-commerce system:
-- **Write side (events)**: `OrderPlaced`, `ItemAdded`, `PaymentProcessed`, `OrderShipped`
-- **Read models (projections)**:
-  - `order_summary` table - for order history page (fast lookups)
-  - `inventory_count` table - for stock levels (real-time aggregation)
-  - `user_order_stats` table - for customer dashboard (pre-computed totals)
-  - `revenue_by_day` table - for analytics (pre-aggregated metrics)
-
-All from the same event stream, each optimized for its specific use case.
-
-## Basic Projections
+## Basic Implementation
 
 ### Implementing a Projection
 

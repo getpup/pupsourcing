@@ -1,83 +1,72 @@
 # Core Concepts
 
-This guide explains the fundamental concepts of event sourcing with pupsourcing.
+Fundamental principles of event sourcing with pupsourcing.
 
-## Event Sourcing Basics
+## Event Sourcing Fundamentals
 
-### What is Event Sourcing?
+### Definition
 
-Event sourcing is a pattern where state changes are stored as a sequence of events rather than storing only the current state. Instead of updating records in place (CRUD), you append immutable events that describe what happened.
+Event sourcing stores state changes as an immutable sequence of events rather than maintaining only current state. Instead of updating records (CRUD), the system appends events that describe what happened.
 
-**Why does this matter?**
-
-In traditional databases, you only see the current state. If a user's email changed from alice@example.com to alice@newdomain.com, you lose the history of that change unless you build custom audit tables. With event sourcing, every state change is captured as an event, giving you a complete history by default.
-
-**Traditional approach (CRUD):**
+**Traditional CRUD:**
 ```
 User table:
-| id | email | name | status |
-| 1  | alice@example.com | Alice | active |
+| id | email              | name  | status |
+| 1  | alice@example.com  | Alice | active |
 
-# UPDATE user SET email='new@email.com' WHERE id=1
-# Old email is lost forever
+# UPDATE loses history
+UPDATE user SET email='new@email.com' WHERE id=1
 ```
 
-**Event sourcing approach:**
+**Event Sourcing:**
 ```
-Events table (append-only):
+Events (append-only):
 1. UserCreated(id=1, email=alice@example.com, name=Alice)
 2. EmailVerified(id=1)
 3. EmailChanged(id=1, old=alice@example.com, new=alice@newdomain.com)
-4. NameChanged(id=1, old=Alice, new=Alice Smith)
-5. UserDeactivated(id=1, reason="account closed")
+4. UserDeactivated(id=1, reason="account closed")
 
-Current state = Apply events 1-5 in order
-State at time T = Apply events up to time T
+Current state = Apply events 1-4 in sequence
+Historical state = Apply events up to specific point in time
 ```
 
 ### Benefits
 
-1. **Complete Audit Trail** - Know exactly what happened, when it happened, who did it, and why. Essential for compliance, debugging, and business analysis.
-
-2. **Time Travel** - Reconstruct state at any point in history. Useful for debugging production issues: "What did this order look like yesterday before the bug?"
-
-3. **Event Replay** - Build new read models from existing events. Need a new report? Just replay the events through a new projection. No data migration needed.
-
-4. **Debugging** - See exactly what led to current state. Instead of asking "how did we get here?", you can see the exact sequence of events.
-
-5. **Business Insights** - Analyze historical data. How many users changed their email in the last month? Just query the events.
+1. **Complete Audit Trail** - Full history of all changes for compliance and debugging
+2. **Temporal Queries** - Reconstruct state at any point in time
+3. **Flexible Read Models** - Build new projections from existing events without migrations
+4. **Event Replay** - Reprocess historical events for debugging or new features
+5. **Business Intelligence** - Rich analytical capabilities from event history
 
 ### Trade-offs
 
-**✅ Pros:**
-- **Complete history**: Every state change is preserved
-- **Flexible read models**: Create new views of data without migrations
-- **Natural audit log**: Compliance requirements met by default
-- **Temporal queries**: Answer "what if" questions about the past
-- **Debugging**: Replay production events in development
-- **Business intelligence**: Rich data for analytics
+**Advantages:**
+- Complete historical record of all state changes
+- Flexible read models without migrations
+- Natural audit logging for compliance
+- Temporal query capabilities
+- Effective debugging through event replay
 
-**❌ Cons:**
-- **Complexity**: More complex than simple CRUD operations
-- **Learning curve**: Team needs to understand ES concepts
-- **Idempotency**: Projections must handle duplicate events
-- **Eventual consistency**: Read models lag behind write side
-- **Storage**: Events accumulate over time (mitigated by snapshots)
-- **Query complexity**: Can't simply JOIN tables - need projections
-- **Schema evolution**: Events are immutable, must handle old versions
+**Considerations:**
+- Higher complexity than simple CRUD
+- Learning curve for team members
+- Projections must handle idempotency
+- Eventual consistency in read models
+- Storage growth over time (mitigated by snapshots)
+- Schema evolution for immutable events
 
-**When to use event sourcing:**
-- Systems requiring full audit trails (financial, healthcare, legal)
-- Domains with complex business logic
+**When to Use:**
+- Systems requiring audit trails (financial, healthcare, legal)
+- Complex business domains
 - Applications needing temporal queries
-- Microservices needing to publish domain events
-- Systems requiring multiple read models from same data
+- Microservices publishing domain events
+- Multiple read models from same data
 
-**When NOT to use event sourcing:**
+**When to Avoid:**
 - Simple CRUD applications
-- Prototypes or MVPs (unless ES is core requirement)
-- Teams unfamiliar with ES and no time to learn
-- Systems with strict low-latency requirements everywhere
+- Prototypes without event sourcing requirements
+- Teams lacking event sourcing experience
+- Systems requiring strict low-latency everywhere
 
 ## Core Components
 

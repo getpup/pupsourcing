@@ -35,3 +35,8 @@ Thumbs.db
 
 # Generated migrations (examples)
 /es/migrations/example_migrations/
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3

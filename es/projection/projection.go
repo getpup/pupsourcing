@@ -66,6 +66,10 @@ type ProcessorConfig struct {
 	// PartitionStrategy determines which events this processor handles
 	PartitionStrategy PartitionStrategy
 
+	// Logger is an optional logger for observability.
+	// If nil, logging is disabled (zero overhead).
+	Logger es.Logger
+
 	// EventsTable is the name of the events table
 	EventsTable string
 
@@ -80,10 +84,6 @@ type ProcessorConfig struct {
 
 	// TotalPartitions is the total number of processor instances
 	TotalPartitions int
-
-	// Logger is an optional logger for observability.
-	// If nil, logging is disabled (zero overhead).
-	Logger es.Logger
 }
 
 // DefaultProcessorConfig returns the default configuration.
@@ -103,11 +103,11 @@ func DefaultProcessorConfig() ProcessorConfig {
 type Processor struct {
 	eventReader store.EventReader
 	db          *sql.DB
-	config      ProcessorConfig
+	config      *ProcessorConfig
 }
 
 // NewProcessor creates a new projection processor.
-func NewProcessor(db *sql.DB, eventReader store.EventReader, config ProcessorConfig) *Processor {
+func NewProcessor(db *sql.DB, eventReader store.EventReader, config *ProcessorConfig) *Processor {
 	return &Processor{
 		config:      config,
 		eventReader: eventReader,

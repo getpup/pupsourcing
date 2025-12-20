@@ -113,7 +113,8 @@ func main() {
 	// Process events with projection
 	fmt.Println("\nRunning projection...")
 	proj := &UserProjection{users: []string{}}
-	processor := projection.NewProcessor(db, store, projection.DefaultProcessorConfig())
+	config := projection.DefaultProcessorConfig()
+	processor := projection.NewProcessor(db, store, &config)
 
 	// Run projection for a short time
 	ctx2, cancel := context.WithTimeout(ctx, 2*time.Second)

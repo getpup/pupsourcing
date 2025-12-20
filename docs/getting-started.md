@@ -1,11 +1,11 @@
-# Getting Started with pupsourcing
+# Getting Started
 
-This guide will help you get started with pupsourcing, from installation to your first event-sourced application.
+This guide covers installation, setup, and creating your first event-sourced application with pupsourcing.
 
 ## Prerequisites
 
 - Go 1.23 or later
-- PostgreSQL 12+ (for production use)
+- PostgreSQL 12+ (or SQLite for development/testing)
 
 ## Installation
 
@@ -13,37 +13,44 @@ This guide will help you get started with pupsourcing, from installation to your
 go get github.com/getpup/pupsourcing
 ```
 
-For PostgreSQL support:
+Choose a database driver:
 ```bash
+# PostgreSQL (recommended for production)
 go get github.com/lib/pq
+
+# SQLite (ideal for development/testing)
+go get modernc.org/sqlite
+
+# MySQL/MariaDB
+go get github.com/go-sql-driver/mysql
 ```
 
 ## Quick Start
 
-### 1. Generate Database Migrations
+### 1. Generate Database Schema
 
-pupsourcing includes a migration generator that creates the necessary database schema:
+Generate SQL migrations for your chosen database:
 
 ```bash
 go run github.com/getpup/pupsourcing/cmd/migrate-gen -output migrations
 ```
 
-Or add to your code:
+Or use `go generate`:
 
 ```go
 //go:generate go run github.com/getpup/pupsourcing/cmd/migrate-gen -output migrations
 ```
 
-This generates SQL migration files for:
-- Events table with indexes
-- Aggregate heads table (for optimistic concurrency)
+This creates SQL migration files with:
+- Events table with proper indexes
+- Aggregate heads table for version tracking
 - Projection checkpoints table
 
-### 2. Apply Migrations
+### 2. Apply Schema Migrations
 
-Apply the generated migrations to your database using your preferred migration tool (e.g., golang-migrate, goose, or manual application).
+Apply the generated migrations using your preferred migration tool (golang-migrate, goose, etc.).
 
-### 3. Connect to Database
+### 3. Initialize Database Connection
 
 ```go
 import (

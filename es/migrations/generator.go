@@ -221,3 +221,96 @@ CREATE INDEX IF NOT EXISTS idx_%s_updated
 		config.CheckpointsTable, config.CheckpointsTable,
 	)
 }
+
+
+// GenerateMySQL generates a MySQL/MariaDB migration file.
+func GenerateMySQL(config *Config) error {
+// Ensure output folder exists
+if err := os.MkdirAll(config.OutputFolder, 0o755); err != nil {
+return fmt.Errorf("failed to create output folder: %w", err)
+}
+
+sql := generateMySQLSQL(config)
+
+outputPath := filepath.Join(config.OutputFolder, config.OutputFilename)
+if err := os.WriteFile(outputPath, []byte(sql), 0o600); err != nil {
+return fmt.Errorf("failed to write migration file: %w", err)
+}
+
+return nil
+}
+
+func generateMySQLSQL(config *Config) string {
+return fmt.Sprintf(`-- Event Sourcing Infrastructure Migration for MySQL/MariaDB
+-- Generated: %s
+
+-- Events table stores all domain events in append-only fashion
+CREATE TABLE IF NOT EXISTS %s (
+    global_position BIGINT AUTO_INCREMENT PRIMARY KEY,
+    aggregate_type VARCHAR(255) NOT NULL,
+    aggregate_id BINARY(16) NOT NULL,
+    aggregate_version BIGINT NOT NULL,
+    event_id BINARY(16) NOT NULL UNIQUE,
+    event_type VARCHAR(255) NOT NULL,
+    event_version INT NOT NULL DEFAULT 1,
+    payload BLOB NOT NULL,
+    trace_id BINARY(16),
+    correlation_id BINARY(16),
+    causation_id BINARY(16),
+    metadata JSON,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    
+    -- Ensure version uniqueness per aggregate
+    UNIQUE KEY unique_aggregate_version (aggregate_type, aggregate_id, aggregate_version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Index for aggregate stream reads
+CREATE INDEX idx_%s_aggregate 
+    ON %s (aggregate_type, aggregate_id, aggregate_version);
+
+-- Index for event type queries
+CREATE INDEX idx_%s_event_type 
+    ON %s (event_type, global_position);
+
+-- Index for correlation tracking
+CREATE INDEX idx_%s_correlation 
+    ON %s (correlation_id);
+
+-- Aggregate heads table tracks the current version of each aggregate
+-- Provides O(1) version lookup for event append operations
+-- Primary key (aggregate_type, aggregate_id) ensures one row per aggregate
+CREATE TABLE IF NOT EXISTS %s (
+    aggregate_type VARCHAR(255) NOT NULL,
+    aggregate_id BINARY(16) NOT NULL,
+    aggregate_version BIGINT NOT NULL,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    
+    PRIMARY KEY (aggregate_type, aggregate_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Index for observability
+CREATE INDEX idx_%s_updated 
+    ON %s (updated_at);
+
+-- Projection checkpoints table tracks progress of each projection
+CREATE TABLE IF NOT EXISTS %s (
+    projection_name VARCHAR(255) PRIMARY KEY,
+    last_global_position BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Index for checkpoints
+CREATE INDEX idx_%s_updated 
+    ON %s (updated_at);
+`,
+time.Now().Format(time.RFC3339),
+config.EventsTable,
+config.EventsTable, config.EventsTable,
+config.EventsTable, config.EventsTable,
+config.EventsTable, config.EventsTable,
+config.AggregateHeadsTable,
+config.AggregateHeadsTable, config.AggregateHeadsTable,
+config.CheckpointsTable,
+config.CheckpointsTable, config.CheckpointsTable,
+)
+}

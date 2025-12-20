@@ -1,10 +1,10 @@
 # pupsourcing Examples
 
-This directory contains comprehensive, runnable examples demonstrating how to use pupsourcing in various scenarios.
+Comprehensive, runnable examples demonstrating pupsourcing patterns and use cases.
 
 ## Overview
 
-Each example is self-contained and demonstrates a specific pattern or use case. Start with the database-specific examples to understand the basics, then explore more advanced patterns with projections and scaling.
+Each example is self-contained and demonstrates specific patterns. Start with database-specific examples for fundamentals, then explore projection and scaling patterns.
 
 ## Database Examples
 

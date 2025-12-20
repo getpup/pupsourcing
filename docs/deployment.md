@@ -94,11 +94,34 @@ For multiple projections or partitioned execution, see the [scaling guide](./sca
 
 ## Deployment Patterns
 
+Choosing the right deployment pattern depends on your scale, infrastructure, and operational requirements.
+
 ### Pattern 1: Single Binary, Multiple Instances
+
+**When to use:**
+- Need horizontal scaling with partitioning
+- Running multiple projection workers
+- Simple infrastructure (Docker Compose, VMs, cloud instances)
+- Want explicit control over worker configuration
+
+**Pros:**
+- Simple to understand and debug
+- Explicit configuration
+- Easy to scale incrementally
+- Works anywhere (Docker, VMs, cloud, on-premise)
+
+**Cons:**
+- Manual configuration for each instance
+- More deployment units to manage
+- Need to track partition assignments
+
+**Best for:** Small to medium deployments, development, teams comfortable with Docker Compose or systemd.
 
 Run the same binary multiple times with different configuration.
 
 #### Docker Compose
+
+**Use case:** Local development, staging environments, or small production deployments.
 
 ```yaml
 version: '3.8'

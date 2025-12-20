@@ -16,6 +16,10 @@ This guide covers everything you need to know about projections in pupsourcing, 
 
 Projections transform events into read models. Think of them as materialized views that are incrementally updated as events occur.
 
+**Why separate read and write models?**
+
+In event sourcing, the write side (event store) is optimized for appending events and maintaining consistency. But querying events directly is inefficient. Projections solve this by maintaining denormalized, query-optimized read models.
+
 ### Event Stream → Projection → Read Model
 
 ```
@@ -27,10 +31,31 @@ Events:               Projection:           Read Model:
 
 ### Why Projections?
 
-- **CQRS**: Separate read and write models
-- **Performance**: Optimized read models for queries
-- **Flexibility**: Multiple views of the same data
-- **Denormalization**: Pre-computed aggregations and joins
+- **CQRS (Command Query Responsibility Segregation)**: Separate read and write models for different optimization goals. Write side focuses on consistency and domain logic. Read side focuses on query performance.
+
+- **Performance**: Optimized read models for queries. Pre-join data, denormalize, create indexes. Your queries become simple `SELECT` statements instead of complex aggregations across events.
+
+- **Flexibility**: Multiple views of the same data. Need data in different formats for different UIs? Create multiple projections from the same events.
+
+- **Denormalization**: Pre-computed aggregations and joins. Calculate totals, averages, and relationships once during projection, not on every query.
+
+**When to use projections:**
+- You need fast queries on event-sourced data
+- You need multiple views of the same data (web UI, mobile API, reports)
+- You need aggregations or complex queries
+- You want to optimize reads separately from writes
+
+**Real-world example:**
+
+Imagine an e-commerce system:
+- **Write side (events)**: `OrderPlaced`, `ItemAdded`, `PaymentProcessed`, `OrderShipped`
+- **Read models (projections)**:
+  - `order_summary` table - for order history page (fast lookups)
+  - `inventory_count` table - for stock levels (real-time aggregation)
+  - `user_order_stats` table - for customer dashboard (pre-computed totals)
+  - `revenue_by_day` table - for analytics (pre-aggregated metrics)
+
+All from the same event stream, each optimized for its specific use case.
 
 ## Basic Projections
 
@@ -98,7 +123,32 @@ err := processor.Run(ctx, proj)
 
 ## Horizontal Scaling
 
-When a single projection worker can't keep up, scale horizontally with partitioning.
+When a single projection worker can't keep up with the event stream, you need to scale horizontally by adding more workers.
+
+### When Do You Need Horizontal Scaling?
+
+**Symptoms that you need to scale:**
+- Projection lag is growing (falling further behind)
+- Processing one event takes too long (expensive operations)
+- High event throughput (thousands of events per second)
+- Single worker CPU/memory maxed out
+
+**When NOT to scale horizontally:**
+- Lag is stable (keeping up fine)
+- Low event volume (< 100 events/sec)
+- Projection logic is fast (< 1ms per event)
+- You haven't optimized the single worker yet (try batch size tuning first)
+
+**Example scenario:**
+
+Your e-commerce platform generates 10,000 order events per hour. Each event requires:
+- Database insert (2ms)
+- External API call to update inventory (50ms)
+- Cache invalidation (1ms)
+
+Total: ~53ms per event = ~1.13 events/second per worker
+
+To process 10,000 events/hour (2.77 events/sec), you need at least 3 workers. In practice, use 4 for safety margin.
 
 ### Architecture
 
@@ -112,6 +162,12 @@ Event Stream:     Partitions:       Workers:
   ...
 ```
 
+**How it works:**
+1. Each event is assigned to a partition based on its `aggregate_id`
+2. Each worker processes events only from its assigned partition
+3. Workers operate independently - no coordination needed
+4. Checkpoints are maintained per-projection (not per-partition)
+
 ### Hash-Based Partitioning
 
 Events are distributed based on `hash(aggregate_id) % total_partitions`:
@@ -124,19 +180,28 @@ config.TotalPartitions = 4   // Total number of workers
 processor := projection.NewProcessor(db, store, config)
 ```
 
+**Why hash-based?**
+- Simple and deterministic
+- No coordination required between workers
+- Even distribution across partitions
+- Same aggregate always goes to same partition
+
 ### Guarantees
 
 ✅ **Events for the same aggregate go to the same partition**
   - Maintains ordering within an aggregate
   - Safe for stateful projections
+  - Example: All events for `User(id=123)` always go to the same partition
 
 ✅ **Even distribution across partitions**
-  - Each partition handles ~25% of events (with 4 partitions)
+  - Each partition handles approximately equal load
+  - With 4 partitions, each handles ~25% of events
   - Load balancing is automatic
 
 ✅ **Deterministic assignment**
   - Same aggregate always goes to same partition
   - Predictable behavior
+  - Replay gives same results
 
 ❌ **No global ordering guarantee**
   - Events across different aggregates may be processed out of order

@@ -334,7 +334,14 @@ This creates a clear chain of causality:
 
 ### OpenTelemetry Integration Example
 
-Complete example integrating with OpenTelemetry:
+If you'd like to add distributed tracing spans to your event store operations, you can create a wrapper around the store that instruments the `Append` and read methods with OpenTelemetry. This allows you to:
+
+- Track the performance of event append operations
+- See which aggregates are being written to
+- Correlate event store operations with other parts of your distributed system
+- Identify bottlenecks in event processing
+
+Here's how to create a tracing wrapper:
 
 ```go
 import (
@@ -343,6 +350,7 @@ import (
     "go.opentelemetry.io/otel/trace"
 )
 
+// TracingEventStore wraps a postgres.Store to add OpenTelemetry spans
 type TracingEventStore struct {
     store  *postgres.Store
     tracer trace.Tracer
@@ -355,7 +363,9 @@ func NewTracingEventStore(store *postgres.Store) *TracingEventStore {
     }
 }
 
+// Append wraps the store's Append method with a span
 func (s *TracingEventStore) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]int64, error) {
+    // Start a new span for this append operation
     ctx, span := s.tracer.Start(ctx, "eventstore.append",
         trace.WithAttributes(
             attribute.Int("event.count", len(events)),
@@ -365,16 +375,20 @@ func (s *TracingEventStore) Append(ctx context.Context, tx es.DBTX, events []es.
     )
     defer span.End()
     
+    // Call the underlying store
     positions, err := s.store.Append(ctx, tx, events)
     if err != nil {
         span.RecordError(err)
         return nil, err
     }
     
+    // Add the resulting positions as span attributes
     span.SetAttributes(attribute.Int64Slice("positions", positions))
     return positions, nil
 }
 ```
+
+You can apply the same pattern to wrap `ReadEvents` and `ReadAggregateStream` methods, creating spans for read operations to track query performance and access patterns.
 
 ## Metrics
 

@@ -15,6 +15,11 @@ import (
 	"github.com/getpup/pupsourcing/es/store"
 )
 
+const (
+	// sqliteDateTimeFormat is the format used for timestamp storage/parsing in SQLite
+	sqliteDateTimeFormat = "2006-01-02 15:04:05.999999"
+)
+
 // StoreConfig contains configuration for the SQLite event store.
 // Configuration is immutable after construction.
 type StoreConfig struct {
@@ -158,7 +163,7 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]in
 			correlationID,
 			causationID,
 			event.Metadata,
-			event.CreatedAt.Format("2006-01-02 15:04:05.999999"),
+			event.CreatedAt.Format(sqliteDateTimeFormat),
 		)
 
 		if err != nil {
@@ -449,19 +454,19 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 	return events, nil
 }
 
+// sqliteDateTimeFormats lists common SQLite datetime formats for parsing
+var sqliteDateTimeFormats = []string{
+	sqliteDateTimeFormat,
+	"2006-01-02 15:04:05",
+	"2006-01-02T15:04:05.999999Z",
+	"2006-01-02T15:04:05Z",
+	time.RFC3339,
+	time.RFC3339Nano,
+}
+
 // parseTimestamp parses SQLite datetime strings to time.Time
 func parseTimestamp(s string) (time.Time, error) {
-	// Try common SQLite datetime formats
-	formats := []string{
-		"2006-01-02 15:04:05.999999",
-		"2006-01-02 15:04:05",
-		"2006-01-02T15:04:05.999999Z",
-		"2006-01-02T15:04:05Z",
-		time.RFC3339,
-		time.RFC3339Nano,
-	}
-
-	for _, format := range formats {
+	for _, format := range sqliteDateTimeFormats {
 		t, err := time.Parse(format, s)
 		if err == nil {
 			return t, nil

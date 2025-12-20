@@ -140,7 +140,7 @@ func appendTestEvents(t *testing.T, ctx context.Context, db *sql.DB, store *post
 			t.Fatalf("Failed to begin transaction: %v", err)
 		}
 
-		positions, err := store.Append(ctx, tx, events)
+		positions, err := store.Append(ctx, tx, es.Any(), events)
 		if err != nil {
 			//nolint:errcheck // Best effort rollback
 			tx.Rollback()

@@ -101,7 +101,7 @@ func TestAppendEvents(t *testing.T) {
 	store := sqlite.NewStore(sqlite.DefaultStoreConfig())
 
 	// Create test events
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
 			AggregateType: "TestAggregate",
@@ -131,7 +131,7 @@ func TestAppendEvents(t *testing.T) {
 	}
 	defer tx.Rollback()
 
-	positions, err := store.Append(ctx, tx, events)
+	positions, err := store.Append(ctx, tx, es.Any(), events)
 	if err != nil {
 		t.Fatalf("Failed to append events: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 	ctx := context.Background()
 	str := sqlite.NewStore(sqlite.DefaultStoreConfig())
 
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 
 	event1 := es.Event{
 		AggregateType: "TestAggregate",
@@ -297,7 +297,7 @@ func TestReadAggregateStream_FullStream(t *testing.T) {
 	store := sqlite.NewStore(sqlite.DefaultStoreConfig())
 
 	// Create test events for one aggregate
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
 			AggregateType: "TestAggregate",
@@ -332,7 +332,7 @@ func TestReadAggregateStream_FullStream(t *testing.T) {
 	}
 
 	tx, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx, events)
+	_, err := store.Append(ctx, tx, es.Any(), events)
 	if err != nil {
 		t.Fatalf("Failed to append events: %v", err)
 	}
@@ -376,7 +376,7 @@ func TestReadAggregateStream_WithFromVersion(t *testing.T) {
 	store := sqlite.NewStore(sqlite.DefaultStoreConfig())
 
 	// Create test events
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
 			AggregateType: "TestAggregate",
@@ -411,7 +411,7 @@ func TestReadAggregateStream_WithFromVersion(t *testing.T) {
 	}
 
 	tx, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx, events)
+	_, err := store.Append(ctx, tx, es.Any(), events)
 	if err != nil {
 		t.Fatalf("Failed to append events: %v", err)
 	}
@@ -449,7 +449,7 @@ func TestAggregateVersionTracking(t *testing.T) {
 	ctx := context.Background()
 	store := sqlite.NewStore(sqlite.DefaultStoreConfig())
 
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 
 	// Append first batch of events
 	events1 := []es.Event{

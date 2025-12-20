@@ -105,7 +105,7 @@ func main() {
 
 	// Append some events
 	fmt.Println("--- Appending Events ---")
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 
 	payload1, err := json.Marshal(UserCreated{
 		Email: "alice@example.com",
@@ -158,7 +158,7 @@ func main() {
 		tx.Rollback()
 	}()
 
-	positions, err := store.Append(ctx, tx, events)
+	positions, err := store.Append(ctx, tx, es.NoStream(), events)
 	if err != nil {
 		log.Printf("Failed to append events: %v", err)
 		return

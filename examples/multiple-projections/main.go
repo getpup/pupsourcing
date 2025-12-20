@@ -36,8 +36,8 @@ type UserCreated struct {
 
 // OrderPlaced event
 type OrderPlaced struct {
-	UserID uuid.UUID `json:"user_id"`
-	Amount float64   `json:"amount"`
+	UserID string  `json:"user_id"`
+	Amount float64 `json:"amount"`
 }
 
 // UserCounterProjection counts users
@@ -199,11 +199,11 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 	// Create some users
 	users := []struct {
 		user UserCreated
-		id   uuid.UUID
+		id   string
 	}{
-		{UserCreated{Email: "alice@example.com", Name: "Alice"}, uuid.New()},
-		{UserCreated{Email: "bob@example.com", Name: "Bob"}, uuid.New()},
-		{UserCreated{Email: "carol@example.com", Name: "Carol"}, uuid.New()},
+		{UserCreated{Email: "alice@example.com", Name: "Alice"}, uuid.New().String()},
+		{UserCreated{Email: "bob@example.com", Name: "Bob"}, uuid.New().String()},
+		{UserCreated{Email: "carol@example.com", Name: "Carol"}, uuid.New().String()},
 	}
 
 	for _, u := range users {
@@ -230,7 +230,7 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 			return err
 		}
 
-		if _, err := store.Append(ctx, tx, events); err != nil {
+		if _, err := store.Append(ctx, tx, es.NoStream(), events); err != nil {
 			//nolint:errcheck // Rollback error ignored: transaction already failed
 			tx.Rollback()
 			return err
@@ -257,7 +257,7 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 		events := []es.Event{
 			{
 				AggregateType: "Order",
-				AggregateID:   uuid.New(),
+				AggregateID:   uuid.New().String(),
 				EventID:       uuid.New(),
 				EventType:     "OrderPlaced",
 				EventVersion:  1,
@@ -272,7 +272,7 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 			return err
 		}
 
-		if _, err := store.Append(ctx, tx, events); err != nil {
+		if _, err := store.Append(ctx, tx, es.NoStream(), events); err != nil {
 			//nolint:errcheck // Rollback error ignored: transaction already failed
 			tx.Rollback()
 			return err

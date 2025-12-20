@@ -158,7 +158,7 @@ func TestProjection_BasicProcessing(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Append some test events
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
 			AggregateType: "TestAggregate",
@@ -183,7 +183,7 @@ func TestProjection_BasicProcessing(t *testing.T) {
 	}
 
 	tx, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx, events)
+	_, err := store.Append(ctx, tx, es.Any(), events)
 	if err != nil {
 		t.Fatalf("Failed to append events: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestProjection_Checkpoint(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Append events
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 	allEvents := make([]es.Event, 5)
 	for i := 0; i < 5; i++ {
 		allEvents[i] = es.Event{
@@ -241,7 +241,7 @@ func TestProjection_Checkpoint(t *testing.T) {
 	}
 
 	tx, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx, allEvents)
+	_, err := store.Append(ctx, tx, es.Any(), allEvents)
 	if err != nil {
 		t.Fatalf("Failed to append events: %v", err)
 	}
@@ -298,7 +298,7 @@ func TestProjection_ErrorHandling(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Append events
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 	event := es.Event{
 		AggregateType: "TestAggregate",
 		AggregateID:   aggregateID,
@@ -311,7 +311,7 @@ func TestProjection_ErrorHandling(t *testing.T) {
 	}
 
 	tx, _ := db.BeginTx(ctx, nil)
-	store.Append(ctx, tx, []es.Event{event})
+	store.Append(ctx, tx, es.Any(), []es.Event{event})
 	tx.Commit()
 
 	// Create projection that returns error

@@ -340,7 +340,7 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 
 		// Aggregate ID is now a string
 		e.AggregateID = aggregateID
-		
+
 		// Parse EventID from binary
 		if err := e.EventID.UnmarshalBinary(eventIDBytes); err != nil {
 			return nil, fmt.Errorf("failed to parse event ID: %w", err)
@@ -456,7 +456,7 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 
 		// Aggregate ID is now a string
 		e.AggregateID = aggID
-		
+
 		// Parse EventID from binary
 		if err := e.EventID.UnmarshalBinary(eventIDBytes); err != nil {
 			return nil, fmt.Errorf("failed to parse event ID: %w", err)

@@ -118,7 +118,7 @@ func TestAppendEvents(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Create test events
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
 			AggregateType: "TestAggregate",
@@ -148,7 +148,8 @@ func TestAppendEvents(t *testing.T) {
 	}
 	defer tx.Rollback()
 
-	positions, err := store.Append(ctx, tx, events)
+	// Use NoStream() for creating a new aggregate
+	positions, err := store.Append(ctx, tx, es.NoStream(), events)
 	if err != nil {
 		t.Fatalf("Failed to append events: %v", err)
 	}
@@ -178,7 +179,7 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 	ctx := context.Background()
 	str := postgres.NewStore(postgres.DefaultStoreConfig())
 
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 
 	event1 := es.Event{
 		AggregateType: "TestAggregate",
@@ -276,11 +277,11 @@ func TestReadEvents(t *testing.T) {
 	}
 
 	tx, _ := db.BeginTx(ctx, nil)
-	_, err := pgStore.Append(ctx, tx, events[:1])
+	_, err := pgStore.Append(ctx, tx, es.Any(), events[:1])
 	if err != nil {
 		t.Fatalf("Failed to append first event: %v", err)
 	}
-	_, err = pgStore.Append(ctx, tx, events[1:])
+	_, err = pgStore.Append(ctx, tx, es.Any(), events[1:])
 	if err != nil {
 		t.Fatalf("Failed to append second event: %v", err)
 	}
@@ -380,7 +381,7 @@ func TestAggregateVersionTracking(t *testing.T) {
 	ctx := context.Background()
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 
 	// Append first batch of events
 	events1 := []es.Event{
@@ -607,7 +608,7 @@ func TestReadAggregateStream_FullStream(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Create test events for one aggregate
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
 			AggregateType: "TestAggregate",
@@ -642,7 +643,7 @@ func TestReadAggregateStream_FullStream(t *testing.T) {
 	}
 
 	tx, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx, events)
+	_, err := store.Append(ctx, tx, es.Any(), events)
 	if err != nil {
 		t.Fatalf("Failed to append events: %v", err)
 	}
@@ -686,7 +687,7 @@ func TestReadAggregateStream_WithFromVersion(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Create test events
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
 			AggregateType: "TestAggregate",
@@ -721,7 +722,7 @@ func TestReadAggregateStream_WithFromVersion(t *testing.T) {
 	}
 
 	tx, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx, events)
+	_, err := store.Append(ctx, tx, es.Any(), events)
 	if err != nil {
 		t.Fatalf("Failed to append events: %v", err)
 	}
@@ -760,7 +761,7 @@ func TestReadAggregateStream_WithToVersion(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Create test events
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
 			AggregateType: "TestAggregate",
@@ -795,7 +796,7 @@ func TestReadAggregateStream_WithToVersion(t *testing.T) {
 	}
 
 	tx, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx, events)
+	_, err := store.Append(ctx, tx, es.Any(), events)
 	if err != nil {
 		t.Fatalf("Failed to append events: %v", err)
 	}
@@ -834,7 +835,7 @@ func TestReadAggregateStream_WithVersionRange(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Create test events
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
 			AggregateType: "TestAggregate",
@@ -879,7 +880,7 @@ func TestReadAggregateStream_WithVersionRange(t *testing.T) {
 	}
 
 	tx, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx, events)
+	_, err := store.Append(ctx, tx, es.Any(), events)
 	if err != nil {
 		t.Fatalf("Failed to append events: %v", err)
 	}
@@ -1044,7 +1045,7 @@ func TestReadAggregateStream_Ordering(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Create events in batches to ensure ordering is by aggregate_version not global_position
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 
 	// First batch
 	events1 := []es.Event{

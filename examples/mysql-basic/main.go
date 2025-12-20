@@ -62,7 +62,7 @@ func main() {
 
 	// Example 1: Append events
 	log.Println("\n=== Example 1: Appending Events ===")
-	aggregateID := uuid.New()
+	aggregateID := uuid.New().String()
 	if err := appendUserEvents(ctx, db, store, aggregateID); err != nil {
 		log.Fatalf("Failed to append events: %v", err)
 	}
@@ -151,7 +151,7 @@ func setupSchema(db *sql.DB) error {
 	return nil
 }
 
-func appendUserEvents(ctx context.Context, db *sql.DB, store *mysql.Store, aggregateID uuid.UUID) error {
+func appendUserEvents(ctx context.Context, db *sql.DB, store *mysql.Store, aggregateID string) error {
 	users := []UserCreated{
 		{Email: "alice@example.com", Name: "Alice Smith"},
 		{Email: "bob@example.com", Name: "Bob Johnson"},
@@ -182,7 +182,7 @@ func appendUserEvents(ctx context.Context, db *sql.DB, store *mysql.Store, aggre
 			return fmt.Errorf("failed to begin transaction: %w", err)
 		}
 
-		positions, err := store.Append(ctx, tx, events)
+		positions, err := store.Append(ctx, tx, es.NoStream(), events)
 		if err != nil {
 			//nolint:errcheck // Rollback error ignored: transaction already failed
 			tx.Rollback()
@@ -226,7 +226,7 @@ func readAllEvents(ctx context.Context, db *sql.DB, store *mysql.Store) error {
 	return nil
 }
 
-func readAggregateStream(ctx context.Context, db *sql.DB, store *mysql.Store, aggregateID uuid.UUID) error {
+func readAggregateStream(ctx context.Context, db *sql.DB, store *mysql.Store, aggregateID string) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)

@@ -55,7 +55,7 @@ func (p *ScalableProjection) Handle(_ context.Context, _ es.DBTX, event *es.Pers
 		}
 		p.count++
 		log.Printf("[Worker %d] Processing: %s (aggregate: %s) - Worker total: %d",
-			p.workerID, payload.Name, event.AggregateID.String()[:8], p.count)
+			p.workerID, payload.Name, event.AggregateID[:8], p.count)
 	}
 	return nil
 }
@@ -170,7 +170,7 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store, 
 		events := []es.Event{
 			{
 				AggregateType: "User",
-				AggregateID:   uuid.New(),
+				AggregateID:   uuid.New().String(),
 				EventID:       uuid.New(),
 				EventType:     "UserCreated",
 				EventVersion:  1,
@@ -185,7 +185,7 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store, 
 			return err
 		}
 
-		if _, err := store.Append(ctx, tx, events); err != nil {
+		if _, err := store.Append(ctx, tx, es.NoStream(), events); err != nil {
 			//nolint:errcheck // Rollback error ignored: transaction already failed
 			tx.Rollback()
 			return err

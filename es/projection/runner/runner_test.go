@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/getpup/pupsourcing/es"
 	"github.com/getpup/pupsourcing/es/projection"
-	"github.com/google/uuid"
 )
 
 // mockEventReader implements store.EventReader for testing

@@ -12,7 +12,7 @@ pupsourcing provides minimal, reliable infrastructure for event sourcing in Go a
 
 ## Key Features
 
-- **Clean Architecture** - Core interfaces are datastore-agnostic
+- **Clean Architecture** - Core interfaces are datastore-agnostic; no "infrastructure creep" into your domain model (no annotations, no framework-specific base classes)
 - **Multiple Database Adapters** - PostgreSQL, SQLite, and MySQL/MariaDB
 - **Optimistic Concurrency** - Automatic conflict detection via database constraints
 - **Projection System** - Pull-based event processing with checkpoints

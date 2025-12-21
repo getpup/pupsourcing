@@ -37,6 +37,16 @@ go get modernc.org/sqlite
 go get github.com/go-sql-driver/mysql
 ```
 
+## Features at a Glance
+
+- **Clean Architecture** - Core interfaces are datastore-agnostic; no "infrastructure creep" into your domain model
+- **Multiple Database Adapters** - PostgreSQL, SQLite, and MySQL/MariaDB
+- **Optimistic Concurrency** - Automatic conflict detection via database constraints
+- **Projection System** - Pull-based event processing with checkpoints
+- **Horizontal Scaling** - Hash-based partitioning for projection workers
+- **Code Generation** - Optional tool for strongly-typed domain event mapping
+- **Minimal Dependencies** - Go standard library plus database driver
+
 ## Quick Start
 
 ### 1. Generate Database Schema
@@ -47,7 +57,19 @@ go run github.com/getpup/pupsourcing/cmd/migrate-gen -output migrations
 
 Apply the generated migrations using your preferred migration tool.
 
-### 2. Append Events
+### 2. (Optional) Generate Event Mapping Code
+
+If you want type-safe mapping between domain events and event sourcing types:
+
+```bash
+go run github.com/getpup/pupsourcing/cmd/eventmap-gen \
+  -input internal/domain/events \
+  -output internal/infrastructure/generated
+```
+
+See [Event Mapping Documentation](./docs/eventmap-gen.md) for details.
+
+### 3. Append Events
 
 ```go
 import (
@@ -82,7 +104,7 @@ if err != nil {
 tx.Commit()
 ```
 
-### 3. Read Aggregate Streams
+### 4. Read Aggregate Streams
 
 ```go
 // Read all events for an aggregate
@@ -94,7 +116,7 @@ fromVersion := int64(5)
 events, err = store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, nil)
 ```
 
-### 4. Run Projections
+### 5. Run Projections
 
 ```go
 import "github.com/getpup/pupsourcing/es/projection"
@@ -125,6 +147,7 @@ Comprehensive documentation is available in the [`docs/`](./docs) directory:
 - **[Core Concepts](./docs/core-concepts.md)** - Understanding event sourcing principles
 - **[Database Adapters](./docs/adapters.md)** - Choosing the right database
 - **[Projections & Scaling](./docs/scaling.md)** - Horizontal scaling and production patterns
+- **[Event Mapping Code Generation](./docs/eventmap-gen.md)** - Type-safe domain event mapping
 - **[Observability](./docs/observability.md)** - Logging, tracing, and monitoring
 - **[API Reference](./docs/api-reference.md)** - Complete API documentation
 

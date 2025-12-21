@@ -96,12 +96,16 @@ event := es.Event{
 // Append within transaction with optimistic concurrency control
 tx, _ := db.BeginTx(ctx, nil)
 // Use NoStream() for creating a new aggregate
-positions, err := store.Append(ctx, tx, es.NoStream(), []es.Event{event})
+result, err := store.Append(ctx, tx, es.NoStream(), []es.Event{event})
 if err != nil {
     tx.Rollback()
     log.Fatal(err)
 }
 tx.Commit()
+
+// Access the result
+fmt.Printf("Events appended at positions: %v\n", result.GlobalPositions)
+fmt.Printf("Aggregate is now at version: %d\n", result.ToVersion())
 ```
 
 ### 4. Read Aggregate Streams
@@ -109,11 +113,20 @@ tx.Commit()
 ```go
 // Read all events for an aggregate
 aggregateID := uuid.New().String()
-events, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
+stream, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
+
+// Access stream information
+fmt.Printf("Stream has %d events\n", stream.Len())
+fmt.Printf("Current aggregate version: %d\n", stream.Version())
 
 // Read from a specific version
 fromVersion := int64(5)
-events, err = store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, nil)
+stream, err = store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, nil)
+
+// Process events
+for _, event := range stream.Events {
+    // Handle event
+}
 ```
 
 ### 5. Run Projections

@@ -24,6 +24,7 @@ func main() {
 	fmt.Println("Example 1: Domain Events V1 → ES Events")
 	fmt.Println("----------------------------------------")
 
+	// Using []any for mixed event types (both supported)
 	v1Events := []any{
 		v1.UserRegistered{
 			Email: "alice@example.com",
@@ -34,6 +35,10 @@ func main() {
 			NewEmail: "alice.smith@example.com",
 		},
 	}
+
+	// Note: You can also use type-safe slices for single event types:
+	//   registrations := []v1.UserRegistered{event1, event2}
+	//   esEvents, err := persistence.ToESEvents("User", userID, registrations)
 
 	userID := uuid.New().String()
 

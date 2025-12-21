@@ -174,7 +174,7 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, expectedVersion es.Expec
 		event := &events[i]
 		aggregateVersion := nextVersion + int64(i)
 
-		// Convert EventID UUID to binary for MySQL
+		// Converts EventID UUID to binary for MySQL
 		var eventIDBytes []byte
 		eventIDBytes, err = event.EventID.MarshalBinary()
 		if err != nil {

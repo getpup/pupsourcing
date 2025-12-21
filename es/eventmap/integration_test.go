@@ -84,20 +84,21 @@ require (
 
 replace github.com/getpup/pupsourcing => ` + repoRoot + `
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0o644); err != nil {
+	if err = os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0o644); err != nil {
 		t.Fatalf("Failed to write go.mod: %v", err)
 	}
 
 	// Run go mod download to populate go.sum
 	downloadCmd := exec.Command("go", "mod", "download")
 	downloadCmd.Dir = tmpDir
-	if output, err := downloadCmd.CombinedOutput(); err != nil {
-		t.Fatalf("Failed to download dependencies: %v\nOutput: %s", err, output)
+	var downloadOutput []byte
+	if downloadOutput, err = downloadCmd.CombinedOutput(); err != nil {
+		t.Fatalf("Failed to download dependencies: %v\nOutput: %s", err, downloadOutput)
 	}
 
 	// Generate the mapping code
 	outputDir := filepath.Join(tmpDir, "generated")
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+	if err = os.MkdirAll(outputDir, 0o755); err != nil {
 		t.Fatalf("Failed to create output dir: %v", err)
 	}
 
@@ -412,8 +413,9 @@ func TestUnknownEventVersion(t *testing.T) {
 	// Run go mod tidy to populate go.sum with all dependencies
 	tidyCmd := exec.Command("go", "mod", "tidy")
 	tidyCmd.Dir = tmpDir
-	if output, err := tidyCmd.CombinedOutput(); err != nil {
-		t.Fatalf("Failed to run go mod tidy: %v\nOutput: %s", err, output)
+	var tidyOutput []byte
+	if tidyOutput, err = tidyCmd.CombinedOutput(); err != nil {
+		t.Fatalf("Failed to run go mod tidy: %v\nOutput: %s", err, tidyOutput)
 	}
 
 	// Run the generated tests

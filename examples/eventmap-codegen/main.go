@@ -47,14 +47,14 @@ func main() {
 		log.Fatalf("Failed to convert v1 events: %v", err)
 	}
 
-	for i, event := range esEvents {
+	for i := range esEvents {
 		fmt.Printf("Event %d:\n", i+1)
-		fmt.Printf("  Type: %s\n", event.EventType)
-		fmt.Printf("  Version: %d\n", event.EventVersion)
-		fmt.Printf("  AggregateID: %s\n", event.AggregateID)
-		fmt.Printf("  Payload: %s\n", string(event.Payload))
-		if event.TraceID.Valid {
-			fmt.Printf("  TraceID: %s\n", event.TraceID.String)
+		fmt.Printf("  Type: %s\n", esEvents[i].EventType)
+		fmt.Printf("  Version: %d\n", esEvents[i].EventVersion)
+		fmt.Printf("  AggregateID: %s\n", esEvents[i].AggregateID)
+		fmt.Printf("  Payload: %s\n", string(esEvents[i].Payload))
+		if esEvents[i].TraceID.Valid {
+			fmt.Printf("  TraceID: %s\n", esEvents[i].TraceID.String)
 		}
 		fmt.Println()
 	}

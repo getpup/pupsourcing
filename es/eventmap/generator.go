@@ -54,9 +54,9 @@ type Generator struct {
 }
 
 // NewGenerator creates a new generator with the given configuration.
-func NewGenerator(config Config) *Generator {
+func NewGenerator(config *Config) *Generator {
 	return &Generator{
-		config: config,
+		config: *config,
 		events: make([]EventInfo, 0),
 	}
 }
@@ -152,9 +152,18 @@ func (g *Generator) buildImportPath(filePath string) string {
 	}
 
 	// Try to determine from input directory
-	absInput, _ := filepath.Abs(g.config.InputDir)
-	absFile, _ := filepath.Abs(filePath)
-	relPath, _ = filepath.Rel(absInput, filepath.Dir(absFile))
+	absInput, err := filepath.Abs(g.config.InputDir)
+	if err != nil {
+		return filepath.ToSlash(relPath)
+	}
+	absFile, err := filepath.Abs(filePath)
+	if err != nil {
+		return filepath.ToSlash(relPath)
+	}
+	relPath, err = filepath.Rel(absInput, filepath.Dir(absFile))
+	if err != nil {
+		return filepath.ToSlash(relPath)
+	}
 
 	return filepath.ToSlash(relPath)
 }
@@ -241,7 +250,7 @@ func (g *Generator) Generate() error {
 
 	// Write to file
 	outputPath := filepath.Join(g.config.OutputDir, g.config.OutputFile)
-	if err := os.WriteFile(outputPath, []byte(code), 0o644); err != nil {
+	if err := os.WriteFile(outputPath, []byte(code), 0o600); err != nil {
 		return fmt.Errorf("failed to write output file: %w", err)
 	}
 
@@ -321,7 +330,7 @@ func (g *Generator) generateImports() string {
 
 		for _, path := range paths {
 			alias := importPaths[path]
-			sb.WriteString(fmt.Sprintf("\t%s \"%s\"\n", alias, path))
+			sb.WriteString(fmt.Sprintf("\t%s %q\n", alias, path))
 		}
 	}
 

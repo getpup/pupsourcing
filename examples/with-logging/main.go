@@ -158,7 +158,7 @@ func main() {
 		tx.Rollback()
 	}()
 
-	positions, err := store.Append(ctx, tx, es.NoStream(), events)
+	result, err := store.Append(ctx, tx, es.NoStream(), events)
 	if err != nil {
 		log.Printf("Failed to append events: %v", err)
 		return
@@ -169,7 +169,8 @@ func main() {
 		return
 	}
 
-	fmt.Printf("\n✓ Events appended at positions: %v\n", positions)
+	fmt.Printf("\n✓ Events appended at positions: %v\n", result.GlobalPositions)
+	fmt.Printf("✓ Aggregate is now at version: %d\n", result.ToVersion())
 	fmt.Println()
 
 	// Process events with projection (with logging)

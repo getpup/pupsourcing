@@ -139,7 +139,7 @@ func handleAppendMode(ctx context.Context, db *sql.DB, store *postgres.Store, nu
 			log.Fatalf("Failed to begin tx: %v", err)
 		}
 
-		positions, err := store.Append(ctx, tx, es.NoStream(), events)
+		result, err := store.Append(ctx, tx, es.NoStream(), events)
 		if err != nil {
 			//nolint:errcheck // Rollback error ignored: transaction already failed
 			tx.Rollback()
@@ -150,7 +150,7 @@ func handleAppendMode(ctx context.Context, db *sql.DB, store *postgres.Store, nu
 			log.Fatalf("Failed to commit: %v", err)
 		}
 
-		log.Printf("  → Event %d appended at position %d", i, positions[0])
+		log.Printf("  → Event %d appended at position %d", i, result.GlobalPositions[0])
 		time.Sleep(100 * time.Millisecond) // Small delay to make it more visible
 	}
 

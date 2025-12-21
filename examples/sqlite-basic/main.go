@@ -140,7 +140,7 @@ func appendUserEvents(ctx context.Context, db *sql.DB, store *sqlite.Store, aggr
 			return fmt.Errorf("failed to begin transaction: %w", err)
 		}
 
-		positions, err := store.Append(ctx, tx, es.NoStream(), events)
+		result, err := store.Append(ctx, tx, es.NoStream(), events)
 		if err != nil {
 			//nolint:errcheck // Rollback error ignored: transaction already failed
 			tx.Rollback()
@@ -151,7 +151,7 @@ func appendUserEvents(ctx context.Context, db *sql.DB, store *sqlite.Store, aggr
 			return fmt.Errorf("failed to commit: %w", err)
 		}
 
-		log.Printf("✓ Appended event for %s at position %d", user.Name, positions[0])
+		log.Printf("✓ Appended event for %s at position %d", user.Name, result.GlobalPositions[0])
 	}
 
 	return nil
@@ -192,14 +192,14 @@ func readAggregateStream(ctx context.Context, db *sql.DB, store *sqlite.Store, a
 	//nolint:errcheck // Rollback is allowed to fail in defer
 	defer tx.Rollback()
 
-	events, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
+	stream, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("failed to read aggregate stream: %w", err)
 	}
 
-	log.Printf("Found %d events for aggregate %s:", len(events), aggregateID)
+	log.Printf("Found %d events for aggregate %s:", stream.Len(), aggregateID)
 	//nolint:gocritic // Iterating by value is acceptable for example code
-	for _, event := range events {
+	for _, event := range stream.Events {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
 			log.Printf("  - Version %d: %s (failed to parse payload)", event.AggregateVersion, event.EventType)

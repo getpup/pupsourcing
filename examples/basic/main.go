@@ -98,7 +98,7 @@ func main() {
 	}()
 
 	// Use NoStream() for creating a new aggregate
-	positions, err := store.Append(ctx, tx, es.NoStream(), events)
+	result, err := store.Append(ctx, tx, es.NoStream(), events)
 	if err != nil {
 		log.Printf("Failed to append events: %v", err)
 		return
@@ -109,7 +109,8 @@ func main() {
 		return
 	}
 
-	fmt.Printf("Events appended at positions: %v\n", positions)
+	fmt.Printf("Events appended at positions: %v\n", result.GlobalPositions)
+	fmt.Printf("Aggregate is now at version: %d\n", result.ToVersion())
 
 	// Process events with projection
 	fmt.Println("\nRunning projection...")

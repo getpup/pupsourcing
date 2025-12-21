@@ -80,40 +80,51 @@ Events are immutable facts that have occurred in your system. They represent som
 - Events contain all data needed to understand what happened
 - Events should be domain-focused, not technical
 
+The Event struct represents an immutable domain event before it is stored. When you create events to append to the store, you populate this structure. The store then assigns the AggregateVersion and GlobalPosition when the event is persisted.
+
 ```go
 type Event struct {
-    // Identity
-    EventID       uuid.UUID      // Unique event identifier
-    AggregateType string          // Type of aggregate (e.g., "User")
-    AggregateID   uuid.UUID      // Aggregate instance identifier
-    EventType     string          // Type of event (e.g., "UserCreated")
-    
-    // Versioning
-    EventVersion      int         // Schema version of this event type (for evolution)
-    AggregateVersion  int64       // Version AFTER this event (assigned by store)
-    GlobalPosition    int64       // Position in global log (assigned by store)
-    
-    // Data
-    Payload    []byte             // Event data (typically JSON)
-    Metadata   []byte             // Additional metadata (typically JSON)
-    
-    // Tracing (optional but recommended for distributed systems)
-    TraceID       uuid.NullUUID   // Distributed tracing ID
-    CorrelationID uuid.NullUUID   // Link related events across aggregates
+    CreatedAt     time.Time
+    AggregateType string          // Type of aggregate (e.g., "User", "Order")
+    EventType     string          // Type of event (e.g., "UserCreated", "OrderPlaced")
+    AggregateID   string          // Aggregate instance identifier (UUID string, email, or any identifier)
+    Payload       []byte          // Event data (typically JSON)
+    Metadata      []byte          // Additional metadata (typically JSON)
+    EventVersion  int             // Schema version of this event type (default: 1)
     CausationID   uuid.NullUUID   // ID of event/command that caused this event
-    
-    // Timestamp
-    CreatedAt time.Time           // When event occurred
+    CorrelationID uuid.NullUUID   // Link related events across aggregates
+    TraceID       uuid.NullUUID   // Distributed tracing ID
+    EventID       uuid.UUID       // Unique event identifier
 }
 ```
 
+Note that AggregateVersion and GlobalPosition are not part of the Event struct because they are assigned by the store during the Append operation. These fields are only present in PersistedEvent.
+
 #### Event vs. PersistedEvent
 
-**Event**: What you create before appending to the store. You don't set `AggregateVersion` or `GlobalPosition` - the store assigns these.
+**Event**: Used when creating new events to append to the store. You populate all fields except AggregateVersion and GlobalPosition, which the store assigns automatically during persistence.
 
-**PersistedEvent**: What you get back after the event is stored or when reading from the store. Includes the assigned `GlobalPosition` and `AggregateVersion`.
+**PersistedEvent**: Returned after events are stored or when reading from the store. Contains all Event fields plus the store-assigned GlobalPosition and AggregateVersion.
 
-**Why the distinction?** Events don't have identity until they're persisted. A PersistedEvent has a position in the global event log and knows its version within the aggregate.
+```go
+type PersistedEvent struct {
+    CreatedAt        time.Time
+    AggregateType    string
+    EventType        string
+    AggregateID      string
+    Payload          []byte
+    Metadata         []byte
+    GlobalPosition   int64     // Assigned by store - position in global event log
+    AggregateVersion int64     // Assigned by store - version within this aggregate
+    EventVersion     int
+    CausationID      uuid.NullUUID
+    CorrelationID    uuid.NullUUID
+    TraceID          uuid.NullUUID
+    EventID          uuid.UUID
+}
+```
+
+This separation ensures events are value objects until persisted. The store assigns both position in the global log and version within the aggregate, guaranteeing consistency.
 
 #### Event Design Best Practices
 
@@ -164,22 +175,28 @@ An aggregate is a cluster of related domain objects that are treated as a unit f
 
 ```go
 // User aggregate - spans multiple events
-aggregateID := uuid.New()
+aggregateID := uuid.New().String()
 
 events := []es.Event{
     {
         AggregateType: "User",
         AggregateID:   aggregateID,
         EventType:     "UserCreated",
+        EventVersion:  1,
         Payload:       []byte(`{"email":"alice@example.com"}`),
-        // ...
+        Metadata:      []byte(`{}`),
+        EventID:       uuid.New(),
+        CreatedAt:     time.Now(),
     },
     {
         AggregateType: "User",
         AggregateID:   aggregateID,  // Same aggregate
         EventType:     "EmailVerified",
+        EventVersion:  1,
         Payload:       []byte(`{}`),
-        // ...
+        Metadata:      []byte(`{}`),
+        EventID:       uuid.New(),
+        CreatedAt:     time.Now(),
     },
 }
 ```
@@ -188,12 +205,12 @@ events := []es.Event{
 
 ### 3. Event Store
 
-The event store is an append-only log of all events.
+The event store is an append-only log of all events, providing atomic append operations with optimistic concurrency control.
 
 ```go
 type EventStore interface {
-    // Append events atomically
-    Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]int64, error)
+    // Append events atomically with version control
+    Append(ctx context.Context, tx es.DBTX, expectedVersion es.ExpectedVersion, events []es.Event) ([]int64, error)
 }
 ```
 
@@ -201,10 +218,11 @@ type EventStore interface {
 - Append-only (events are never modified or deleted)
 - Globally ordered (via `global_position`)
 - Transactional (uses provided transaction)
+- Optimistic concurrency via expectedVersion parameter
 
 ### 4. Projections
 
-Projections transform events into read models (materialized views).
+Projections transform events into read models (materialized views), enabling flexible query patterns and eventual consistency.
 
 ```go
 type Projection interface {
@@ -217,12 +235,12 @@ type Projection interface {
 ```
 
 **Projection lifecycle:**
-1. Read batch of events from store
-2. Apply partition filter
-3. Call Handle() for each event
-4. Update checkpoint
+1. Read batch of events from store starting from checkpoint
+2. Apply partition filter (for horizontal scaling)
+3. Call Handle() for each event within a transaction
+4. Update checkpoint atomically
 5. Commit transaction
-6. Repeat
+6. Repeat until context is cancelled or error occurs
 
 ### 5. Checkpoints
 
@@ -326,31 +344,117 @@ User XYZ:
 
 ### Idempotency
 
-Projections must be idempotent because events may be reprocessed (e.g., on crash recovery).
+Projections must be idempotent because events may be reprocessed during crash recovery or restarts. This ensures that processing the same event multiple times produces the same result as processing it once.
 
-**Non-idempotent (bad):**
+**Non-idempotent (problematic):**
 ```go
 func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
-    // Problem: Running twice increments counter twice
-    _, err := tx.ExecContext(ctx, "UPDATE stats SET count = count + 1")
+    if event.EventType != "OrderPlaced" {
+        return nil
+    }
+    
+    // Problem: Running this twice increments the counter twice for the same event
+    _, err := tx.ExecContext(ctx, 
+        "UPDATE sales_statistics SET total_orders = total_orders + 1 WHERE date = CURRENT_DATE")
     return err
 }
 ```
 
-**Idempotent (good):**
+**Idempotent approach 1: Track processed events explicitly**
 ```go
 func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
-    // Solution: Use INSERT ... ON CONFLICT
-    _, err := tx.ExecContext(ctx,
-        "INSERT INTO processed_events (event_id) VALUES ($1)"+
-        "ON CONFLICT (event_id) DO NOTHING",
-        event.EventID)
+    if event.EventType != "OrderPlaced" {
+        return nil
+    }
+    
+    // Check if we've already processed this event
+    var exists bool
+    err := tx.QueryRowContext(ctx,
+        "SELECT EXISTS(SELECT 1 FROM order_events_processed WHERE event_id = $1)",
+        event.EventID).Scan(&exists)
+    if err != nil {
+        return err
+    }
+    if exists {
+        return nil  // Already processed, skip
+    }
+    
+    // Process the event
+    _, err = tx.ExecContext(ctx, 
+        "UPDATE sales_statistics SET total_orders = total_orders + 1 WHERE date = CURRENT_DATE")
     if err != nil {
         return err
     }
     
-    // Now safe to update stats
-    _, err = tx.ExecContext(ctx, "UPDATE stats SET count = count + 1")
+    // Mark event as processed
+    _, err = tx.ExecContext(ctx,
+        "INSERT INTO order_events_processed (event_id, processed_at) VALUES ($1, NOW())",
+        event.EventID)
+    return err
+}
+```
+
+**Idempotent approach 2: Use upsert semantics**
+```go
+func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+    if event.EventType != "UserCreated" {
+        return nil
+    }
+    
+    var payload struct {
+        Email string `json:"email"`
+        Name  string `json:"name"`
+    }
+    if err := json.Unmarshal(event.Payload, &payload); err != nil {
+        return err
+    }
+    
+    // Use INSERT ... ON CONFLICT to make this idempotent
+    // If aggregate_id already exists, update with the same values
+    _, err := tx.ExecContext(ctx,
+        `INSERT INTO users (aggregate_id, email, name, created_at) 
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (aggregate_id) 
+         DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name`,
+        event.AggregateID, payload.Email, payload.Name, event.CreatedAt)
+    return err
+}
+```
+
+**Idempotent approach 3: Use event position as version**
+```go
+func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+    if event.EventType != "InventoryAdjusted" {
+        return nil
+    }
+    
+    var payload struct {
+        ProductID string `json:"product_id"`
+        Quantity  int    `json:"quantity"`
+    }
+    if err := json.Unmarshal(event.Payload, &payload); err != nil {
+        return err
+    }
+    
+    // Only apply if this event's position is greater than last processed position for this product
+    result, err := tx.ExecContext(ctx,
+        `UPDATE inventory 
+         SET quantity = quantity + $1, last_event_position = $2
+         WHERE product_id = $3 AND (last_event_position IS NULL OR last_event_position < $2)`,
+        payload.Quantity, event.GlobalPosition, payload.ProductID)
+    if err != nil {
+        return err
+    }
+    
+    // If no rows updated, product doesn't exist yet
+    rowsAffected, _ := result.RowsAffected()
+    if rowsAffected == 0 {
+        _, err = tx.ExecContext(ctx,
+            `INSERT INTO inventory (product_id, quantity, last_event_position) 
+             VALUES ($1, $2, $3)
+             ON CONFLICT (product_id) DO NOTHING`,  // Race condition safety
+            payload.ProductID, payload.Quantity, event.GlobalPosition)
+    }
     return err
 }
 ```
@@ -383,29 +487,31 @@ return tx.Commit()
 
 ### 1. Library, Not Framework
 
-pupsourcing is a library. You call it; it doesn't call you.
+pupsourcing is designed as a library that you integrate into your application. Your code controls the flow and calls library functions when needed.
 
-**Library style (pupsourcing):**
+**Library approach (pupsourcing):**
 ```go
-// You're in control
+// You control when and how to run projections
 processor := projection.NewProcessor(db, store, &config)
 err := processor.Run(ctx, projection)
 ```
 
-**Framework style (not pupsourcing):**
+**Framework approach (not pupsourcing):**
 ```go
-// Framework discovers and calls your code
+// Framework discovers your code via reflection or annotations
 @EventHandler
 public void on(UserCreated event) { }
 ```
 
-### 2. Explicit Over Magic
+Benefits: You maintain full control over program flow, dependencies, and lifecycle management.
 
-No auto-discovery, no hidden globals, no magic.
+### 2. Explicit Dependencies
 
-**Explicit (pupsourcing):**
+All dependencies are passed explicitly as parameters. There are no hidden globals, automatic dependency injection, or runtime discovery mechanisms.
+
+**Explicit dependencies (pupsourcing):**
 ```go
-// Every dependency is explicit
+// Every dependency is visible at the call site
 runner := runner.New(db, eventReader)
 err := runner.Run(ctx, []runner.ProjectionConfig{
     {Projection: proj1, ProcessorConfig: config1},
@@ -413,49 +519,72 @@ err := runner.Run(ctx, []runner.ProjectionConfig{
 })
 ```
 
-**Magic (not pupsourcing):**
+**Implicit dependencies (not pupsourcing):**
 ```go
-// Where do projections come from? Environment variables? Registry?
-runner.Start()  // What is it running?
+// Where do projections come from? Service locator? Global registry?
+runner.Start()  // Unclear what this will execute
 ```
 
-### 3. Pull-Based Processing
+Benefits: Code is easier to understand, test, and debug when all dependencies are explicit.
 
-Projections pull events from the store. No pub/sub, no push.
+### 3. Pull-Based Event Processing
 
-**Pull-based (pupsourcing):**
+Projections actively read events from the store at their own pace. The library does not use publish-subscribe patterns or push-based delivery.
+
+**Pull-based processing (pupsourcing):**
 ```go
-// Projection reads at its own pace
+// Projection reads events on its own schedule
 for {
     events := store.ReadEvents(ctx, tx, checkpoint, batchSize)
     for _, event := range events {
         projection.Handle(ctx, tx, event)
     }
+    // Update checkpoint and commit
 }
 ```
 
-**Benefits:**
-- Simple backpressure
-- No connection management
-- Works with any storage
+Benefits:
+- Natural backpressure mechanism (slow projections won't overwhelm the system)
+- No connection pooling or message broker management required
+- Works consistently across different storage backends
+- Simple failure recovery (resume from checkpoint)
 
-### 4. Database as Coordination
+### 4. Database-Centric Coordination
 
-No external coordination needed. Database provides:
-- Checkpoints (per projection)
-- Optimistic concurrency (via constraints)
-- Transactions (atomic operations)
+The database serves as the coordination mechanism. No external distributed systems are required for basic operation.
+
+Database provides:
+- **Checkpoints**: Each projection tracks its position via a database row
+- **Optimistic concurrency**: Enforced through unique constraints on aggregate versions
+- **Transactional consistency**: Operations are atomic within database transactions
+
+This approach keeps infrastructure requirements minimal while providing reliable coordination.
 
 ## Common Patterns
 
 ### Pattern 1: Read-Your-Writes
 
+Write events and read them back within the same transaction for immediate consistency.
+
 ```go
 // Write event
 tx, _ := db.BeginTx(ctx, nil)
+aggregateID := uuid.New().String()
+events := []es.Event{
+    {
+        AggregateType: "User",
+        AggregateID:   aggregateID,
+        EventType:     "UserCreated",
+        EventVersion:  1,
+        Payload:       []byte(`{"email":"user@example.com"}`),
+        Metadata:      []byte(`{}`),
+        EventID:       uuid.New(),
+        CreatedAt:     time.Now(),
+    },
+}
 store.Append(ctx, tx, es.NoStream(), events)
 
-// Read immediately (same transaction)
+// Read immediately within same transaction
 aggregate, _ := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
 tx.Commit()
 ```
@@ -481,22 +610,50 @@ func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.Persisted
 
 ### Pattern 3: Aggregate Reconstruction
 
+Rebuild aggregate state from its event history.
+
 ```go
 type User struct {
-    ID    uuid.UUID
-    Email string
-    Name  string
+    ID     string
+    Email  string
+    Name   string
+    Active bool
 }
 
-func LoadUser(ctx context.Context, tx es.DBTX, store EventStore, id uuid.UUID) (*User, error) {
+func (u *User) Apply(event es.PersistedEvent) {
+    switch event.EventType {
+    case "UserCreated":
+        var payload struct {
+            Email string `json:"email"`
+            Name  string `json:"name"`
+        }
+        json.Unmarshal(event.Payload, &payload)
+        u.Email = payload.Email
+        u.Name = payload.Name
+        u.Active = true
+    case "UserDeactivated":
+        u.Active = false
+    case "EmailChanged":
+        var payload struct {
+            NewEmail string `json:"new_email"`
+        }
+        json.Unmarshal(event.Payload, &payload)
+        u.Email = payload.NewEmail
+    }
+}
+
+func LoadUser(ctx context.Context, tx es.DBTX, store store.AggregateStreamReader, id string) (*User, error) {
     events, err := store.ReadAggregateStream(ctx, tx, "User", id, nil, nil)
     if err != nil {
         return nil, err
     }
+    if len(events) == 0 {
+        return nil, fmt.Errorf("user not found: %s", id)
+    }
     
     user := &User{ID: id}
     for _, event := range events {
-        user.Apply(event)  // Apply each event in order
+        user.Apply(event)
     }
     return user, nil
 }

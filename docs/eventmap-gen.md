@@ -98,7 +98,7 @@ func main() {
     esEvents, err := generated.ToESEvents(
         "User",                    // aggregate type
         uuid.New().String(),       // aggregate ID
-        []any{event},             // domain events
+        []v1.UserRegistered{event},// domain events (type-safe!)
         generated.WithTraceID("trace-123"), // optional metadata
     )
 
@@ -196,10 +196,10 @@ Returns the event type string for a domain event. The event type is the struct n
 ### 2. `ToESEvents` - Domain to ES Conversion
 
 ```go
-func ToESEvents(
+func ToESEvents[T any](
     aggregateType string,
     aggregateID string,
-    events []any,
+    events []T,
     opts ...Option,
 ) ([]es.Event, error)
 ```
@@ -209,6 +209,8 @@ Converts domain events to `es.Event` instances with:
 - Automatic version assignment
 - UUID generation
 - Optional metadata (causation/correlation/trace IDs)
+
+The generic type parameter `T` allows for type-safe event slices. You can pass `[]YourEventType` instead of `[]any` for better type safety. Using `[]any` is still supported for convenience when mixing event types.
 
 ### 3. `FromESEvents` - ES to Domain Conversion
 
@@ -252,12 +254,25 @@ Use options to inject metadata:
 
 ```go
 esEvents, err := generated.ToESEvents(
-    "User", userID, []any{event},
+    "User", userID, []v1.UserRegistered{event},
     generated.WithCausationID("command-123"),
     generated.WithCorrelationID("correlation-456"),
     generated.WithTraceID("trace-789"),
 )
 ```
+
+### 6. Unit Tests
+
+The tool automatically generates comprehensive unit tests in a separate `_test.go` file. The generated tests include:
+
+- **EventTypeOf tests** - Verify correct event type resolution for all events
+- **ToESEvents tests** - Test type-safe conversion from domain to ES events
+- **FromESEvents tests** - Test conversion from persisted events back to domain events
+- **Options tests** - Verify metadata injection via options pattern
+- **Type helpers tests** - Test version-specific conversion functions
+- **Error cases** - Test handling of unknown event types and invalid JSON
+
+These tests ensure the generated code works correctly and provide examples of usage patterns.
 
 ## Clean Architecture
 
@@ -409,17 +424,37 @@ events/
     user_registered.go  # New version
 ```
 
-### 5. Use Type-Safe Helpers When Possible
+### 5. Prefer Type-Safe Generic Calls
+
+The generic `ToESEvents` function now supports type-safe slices:
 
 ```go
-// ✅ Type-safe, validates at compile time
+// ✅ Best: Type-safe with generics (compile-time safety)
+events := []v1.UserRegistered{event1, event2}
+esEvents, err := generated.ToESEvents("User", userID, events)
+
+// ✅ Good: Type-safe per-event helper
 esEvent, err := generated.ToUserRegisteredV1("User", userID, event)
 
-// ⚠️ Less safe, uses interface{}
-esEvents, err := generated.ToESEvents("User", userID, []any{event})
+// ⚠️ OK but less safe: Using []any for mixed event types
+esEvents, err := generated.ToESEvents("User", userID, []any{event1, event2})
 ```
 
-### 6. Document Breaking Changes
+Using type-safe slices with generics provides better compile-time safety while maintaining flexibility.
+
+### 6. Don't Delete Old Versions
+
+Old versions must remain for replaying historical events:
+
+```
+events/
+  v1/
+    user_registered.go  # Keep this even if you move to v2
+  v2/
+    user_registered.go  # New version
+```
+
+### 7. Document Breaking Changes
 
 Add comments when introducing breaking schema changes:
 

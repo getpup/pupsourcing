@@ -45,9 +45,10 @@ go run ./examples/eventmap-codegen
 
 1. **Pure Domain Events** - Events in `domain/user/events` have no dependencies on infrastructure
 2. **Versioned Events** - `UserRegistered` exists in both v1 and v2 with different schemas
-3. **Type-Safe Mapping** - Generated code provides compile-time safety
+3. **Type-Safe Mapping with Generics** - Generated code provides compile-time safety with generic type parameters
 4. **Round-Trip Conversion** - Domain → ES → Domain conversion maintains data integrity
 5. **Options Pattern** - Metadata injection (CausationID, CorrelationID, TraceID)
+6. **Automatic Test Generation** - Unit tests are generated alongside the mapping code
 
 ## Key Takeaways
 

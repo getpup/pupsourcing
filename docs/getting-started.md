@@ -98,7 +98,7 @@ payload, _ := json.Marshal(UserCreated{
 })
 
 // Create event
-aggregateID := uuid.New() // In practice, this comes from your domain/business logic
+aggregateID := uuid.New().String() // In practice, this comes from your domain/business logic
 events := []es.Event{
     {
         AggregateType: "User",
@@ -133,7 +133,7 @@ fmt.Printf("Event appended at position: %d\n", positions[0])
 
 ```go
 // Read all events for an aggregate
-aggregateID := uuid.MustParse("...")
+aggregateID := "550e8400-e29b-41d4-a716-446655440000" // Use the actual aggregate ID
 tx, _ := db.BeginTx(ctx, nil)
 defer tx.Rollback()
 
@@ -201,6 +201,7 @@ See the [complete working example](../examples/single-worker/main.go) that ties 
 ### Appending Multiple Events
 
 ```go
+userID := uuid.New().String()
 events := []es.Event{
     {
         AggregateType: "User",
@@ -243,6 +244,8 @@ if errors.Is(err, store.ErrOptimisticConcurrency) {
 ### Reading Event Ranges
 
 ```go
+aggregateID := uuid.New().String()
+
 // Read from version 5 onwards (e.g., after loading a snapshot)
 fromVersion := int64(5)
 events, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, nil)

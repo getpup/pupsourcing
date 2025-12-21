@@ -71,7 +71,8 @@ func EventTypeOf(e any) (string, error) {
 
 // ToESEvents converts domain events to es.Event instances.
 // Each domain event is marshaled to JSON and wrapped in an es.Event.
-func ToESEvents(aggregateType string, aggregateID string, events []any, opts ...Option) ([]es.Event, error) {
+// The generic type T allows for type-safe event slices instead of []any.
+func ToESEvents[T any](aggregateType string, aggregateID string, events []T, opts ...Option) ([]es.Event, error) {
 	options := &eventOptions{}
 	for _, opt := range opts {
 		opt(options)

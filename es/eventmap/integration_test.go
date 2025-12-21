@@ -273,7 +273,7 @@ func TestRoundTripV2(t *testing.T) {
 	}
 }
 
-func TestTypeHelpers(t *testing.T) {
+func TestIntegrationTypeHelpers(t *testing.T) {
 	// Test type-safe helper functions
 	domainEvent := v1.OrderCreated{
 		OrderID:    "order-999",
@@ -322,7 +322,7 @@ func TestTypeHelpers(t *testing.T) {
 	}
 }
 
-func TestOptions(t *testing.T) {
+func TestIntegrationOptions(t *testing.T) {
 	domainEvent := v1.OrderCreated{
 		OrderID:    "order-111",
 		CustomerID: "customer-111",

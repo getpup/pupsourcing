@@ -2,6 +2,16 @@
 
 This guide covers installation, setup, and creating your first event-sourced application with pupsourcing.
 
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Complete Example](#complete-example)
+- [Next Steps](#next-steps)
+- [Common Patterns](#common-patterns)
+- [Troubleshooting](#troubleshooting)
+
 ## Prerequisites
 
 - Go 1.23 or later

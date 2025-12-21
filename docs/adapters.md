@@ -2,6 +2,18 @@
 
 pupsourcing provides production-ready adapters for PostgreSQL, SQLite, and MySQL/MariaDB. All adapters implement identical interfaces, enabling seamless database migration.
 
+## Table of Contents
+
+- [Architecture](#architecture)
+- [PostgreSQL Adapter](#postgresql-adapter)
+- [SQLite Adapter](#sqlite-adapter)
+- [MySQL/MariaDB Adapter](#mysqlmariadb-adapter)
+- [Adapter Comparison](#adapter-comparison)
+- [Switching Adapters](#switching-adapters)
+- [Configuration Options](#configuration-options)
+- [Testing Recommendations](#testing-recommendations)
+- [Performance Considerations](#performance-considerations)
+
 ## Architecture
 
 Each adapter implements three core interfaces:

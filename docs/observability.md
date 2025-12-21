@@ -2,6 +2,16 @@
 
 Logging, tracing, and monitoring capabilities for pupsourcing applications.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Logging](#logging)
+- [Distributed Tracing](#distributed-tracing)
+- [Metrics](#metrics)
+- [Best Practices](#best-practices)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
+
 ## Overview
 
 pupsourcing provides comprehensive observability features:

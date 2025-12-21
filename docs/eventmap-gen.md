@@ -31,11 +31,19 @@ Manually mapping between these layers is error-prone and repetitive. This tool:
 
 ## Installation
 
+Install the tool to your Go toolchain (recommended):
+
 ```bash
 go install github.com/getpup/pupsourcing/cmd/eventmap-gen@latest
 ```
 
-Or run directly:
+This allows you to use it with `go generate` directives:
+
+```go
+//go:generate go tool eventmap-gen -input ../../domain/events -output . -package persistence
+```
+
+Or run directly without installation:
 
 ```bash
 go run github.com/getpup/pupsourcing/cmd/eventmap-gen [flags]
@@ -68,8 +76,27 @@ type UserRegistered struct {
 
 ### 2. Generate Mapping Code
 
+The recommended approach is using `go generate` with a directive in your repository adapter:
+
+```bash
+go generate ./...
+```
+
+This runs any `//go:generate` directives in your code. See [Using with go generate](#using-with-go-generate) below for setup.
+
+Alternatively, run the tool directly:
+
 ```bash
 go run github.com/getpup/pupsourcing/cmd/eventmap-gen \
+  -input internal/domain/events \
+  -output internal/infrastructure/persistence/generated \
+  -package generated
+```
+
+Or if you installed the tool:
+
+```bash
+eventmap-gen \
   -input internal/domain/events \
   -output internal/infrastructure/persistence/generated \
   -package generated
@@ -324,6 +351,117 @@ This tool fits into Domain-Driven Design and CQRS patterns:
 - **Command-Event Separation** - Commands produce events, events are stored
 - **Read Models** - Projections consume events to build read models
 
+#### Repository Adapter Example
+
+Here's how to integrate the generator in a repository adapter using `go generate`:
+
+**Directory structure:**
+```
+internal/
+  domain/
+    user/
+      events/
+        v1/
+          user_events.go       # Pure domain events
+      user.go                  # Aggregate
+      repository.go            # Repository interface (port)
+  infrastructure/
+    persistence/
+      user/
+        repository.go          # Repository adapter (implementation)
+```
+
+**Repository adapter with go generate directive:**
+
+```go
+// internal/infrastructure/persistence/user/repository.go
+
+//go:generate go tool eventmap-gen -input ../../../domain/user/events -output . -package user
+
+package user
+
+import (
+    "context"
+    "database/sql"
+
+    "github.com/getpup/pupsourcing/es"
+    "github.com/getpup/pupsourcing/es/adapters/postgres"
+    
+    "myapp/internal/domain/user"
+    "myapp/internal/domain/user/events/v1"
+)
+
+// Repository implements the domain repository interface using event sourcing.
+type Repository struct {
+    store es.EventStore
+}
+
+func NewRepository(db *sql.DB) *Repository {
+    return &Repository{
+        store: postgres.NewStore(postgres.DefaultStoreConfig()),
+    }
+}
+
+func (r *Repository) Save(ctx context.Context, u *user.User) error {
+    // Get uncommitted domain events from aggregate
+    domainEvents := u.GetUncommittedEvents()
+    
+    // Convert to ES events using generated code
+    esEvents, err := ToESEvents(u.AggregateType(), u.ID(), domainEvents)
+    if err != nil {
+        return err
+    }
+    
+    tx, err := r.db.BeginTx(ctx, nil)
+    if err != nil {
+        return err
+    }
+    defer tx.Rollback()
+    
+    // Append to event store
+    _, err = r.store.Append(ctx, tx, esEvents)
+    if err != nil {
+        return err
+    }
+    
+    return tx.Commit()
+}
+
+func (r *Repository) Load(ctx context.Context, id string) (*user.User, error) {
+    // Read aggregate stream
+    persistedEvents, err := r.store.ReadAggregateStream(
+        ctx, r.db, "User", id, nil, nil,
+    )
+    if err != nil {
+        return nil, err
+    }
+    
+    // Convert to domain events using generated code
+    domainEvents, err := FromESEvents[any](persistedEvents)
+    if err != nil {
+        return nil, err
+    }
+    
+    // Reconstitute aggregate from events
+    return user.FromEvents(id, domainEvents), nil
+}
+```
+
+**Generate the mapping code:**
+
+```bash
+# From project root
+go generate ./internal/infrastructure/persistence/user/...
+```
+
+This creates `event_mapping.gen.go` and `event_mapping.gen_test.go` in the same directory as the repository, keeping all infrastructure code together.
+
+**Benefits of this approach:**
+- Code generation is co-located with the adapter that uses it
+- Running `go generate ./...` regenerates all mapping code
+- CI/CD can verify generated code is up to date with `go generate -x ./... && git diff --exit-code`
+- Clear separation between domain (pure events) and infrastructure (persistence)
+
 ## Advanced Usage
 
 ### Custom Module Paths
@@ -349,7 +487,19 @@ eventmap-gen \
 
 ### Using with `go generate`
 
-Add to your code:
+The recommended approach is to add `//go:generate` directives in your infrastructure code. After installing the tool with `go install`, use:
+
+```go
+//go:generate go tool eventmap-gen -input ../../domain/events -output . -package persistence
+```
+
+**Why use `go tool`?**
+- Finds the tool in your Go toolchain (`$GOPATH/bin` or `$GOBIN`)
+- No need to specify full import path
+- Faster execution (no recompilation)
+- Standard Go convention for installed tools
+
+If you prefer not to install the tool, you can use `go run`:
 
 ```go
 //go:generate go run github.com/getpup/pupsourcing/cmd/eventmap-gen -input ../../domain/events -output . -package persistence
@@ -360,6 +510,8 @@ Then run:
 ```bash
 go generate ./...
 ```
+
+See the [Repository Adapter Example](#repository-adapter-example) for a complete integration pattern.
 
 ## Best Practices
 

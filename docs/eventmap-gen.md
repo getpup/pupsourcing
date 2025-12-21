@@ -313,7 +313,7 @@ This tool maintains clean architecture boundaries:
 
 ```
 ┌─────────────────────────────────────────┐
-│ Domain Layer (Pure Business Logic)     │
+│ Domain Layer (Pure Business Logic)      │
 │ ┌─────────────────────────────────────┐ │
 │ │ Domain Events (NO dependencies)     │ │
 │ │ - v1.UserRegistered                 │ │

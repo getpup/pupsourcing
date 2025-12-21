@@ -75,7 +75,7 @@ store := postgres.NewStore(postgres.DefaultStoreConfig())
 // Use with *sql.DB or *sql.Tx
 db, _ := sql.Open("postgres", connString)
 tx, _ := db.BeginTx(ctx, nil)
-positions, err := store.Append(ctx, tx, es.NoStream(), events)
+result, err := store.Append(ctx, tx, es.NoStream(), events)
 tx.Commit()
 ```
 err := migrations.GeneratePostgres(&config)
@@ -153,7 +153,7 @@ db.Exec("PRAGMA journal_mode = WAL;")
 
 // Use with transactions
 tx, _ := db.BeginTx(ctx, nil)
-positions, err := store.Append(ctx, tx, es.NoStream(), events)
+result, err := store.Append(ctx, tx, es.NoStream(), events)
 tx.Commit()
 ```
 
@@ -239,7 +239,7 @@ db, _ := sql.Open("mysql", dsn)
 
 // Use with transactions
 tx, _ := db.BeginTx(ctx, nil)
-positions, err := store.Append(ctx, tx, es.NoStream(), events)
+result, err := store.Append(ctx, tx, es.NoStream(), events)
 tx.Commit()
 ```
 
@@ -295,9 +295,9 @@ import "github.com/getpup/pupsourcing/es/adapters/mysql"
 store := mysql.NewStore(mysql.DefaultStoreConfig())
 
 // All adapters support the same operations
-positions, err := store.Append(ctx, tx, es.NoStream(), events)
+result, err := store.Append(ctx, tx, es.NoStream(), events)
 events, err := store.ReadEvents(ctx, tx, fromPosition, limit)
-events, err := store.ReadAggregateStream(ctx, tx, aggregateType, aggregateID, nil, nil)
+stream, err := store.ReadAggregateStream(ctx, tx, aggregateType, aggregateID, nil, nil)
 ```
 
 ## Configuration Options

@@ -367,27 +367,27 @@ func NewTracingEventStore(store *postgres.Store) *TracingEventStore {
 }
 
 // Append wraps the store's Append method with a span
-func (s *TracingEventStore) Append(ctx context.Context, tx es.DBTX, events []es.Event) ([]int64, error) {
+func (s *TracingEventStore) Append(ctx context.Context, tx es.DBTX, expectedVersion es.ExpectedVersion, events []es.Event) (es.AppendResult, error) {
     // Start a new span for this append operation
     ctx, span := s.tracer.Start(ctx, "eventstore.append",
         trace.WithAttributes(
             attribute.Int("event.count", len(events)),
             attribute.String("aggregate.type", events[0].AggregateType),
-            attribute.String("aggregate.id", events[0].AggregateID.String()),
+            attribute.String("aggregate.id", events[0].AggregateID),
         ),
     )
     defer span.End()
     
     // Call the underlying store
-    positions, err := s.store.Append(ctx, tx, events)
+    result, err := s.store.Append(ctx, tx, expectedVersion, events)
     if err != nil {
         span.RecordError(err)
-        return nil, err
+        return es.AppendResult{}, err
     }
     
     // Add the resulting positions as span attributes
-    span.SetAttributes(attribute.Int64Slice("positions", positions))
-    return positions, nil
+    span.SetAttributes(attribute.Int64Slice("positions", result.GlobalPositions))
+    return result, nil
 }
 ```
 

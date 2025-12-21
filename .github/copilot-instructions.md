@@ -169,26 +169,40 @@ events := []es.Event{
 
 // Append within a transaction
 tx, _ := db.BeginTx(ctx, nil)
-positions, err := store.Append(ctx, tx, events)
+result, err := store.Append(ctx, tx, es.NoStream(), events)
 if err != nil {
     tx.Rollback()
     return err
 }
 tx.Commit()
+
+// Access result information
+currentVersion := result.ToVersion()
 ```
 
 ### Reading Aggregate Streams
 ```go
 // Read all events for an aggregate
-events, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
+stream, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
+
+// Access stream information
+currentVersion := stream.Version()
+if stream.IsEmpty() {
+    // Aggregate doesn't exist
+}
 
 // Read from a specific version onwards
 fromVersion := int64(5)
-events, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, nil)
+stream, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, nil)
 
 // Read a version range
 toVersion := int64(10)
-events, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, &toVersion)
+stream, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, &toVersion)
+
+// Process events
+for _, event := range stream.Events {
+    // Handle event
+}
 ```
 
 ### Implementing Projections

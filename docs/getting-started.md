@@ -127,7 +127,7 @@ ctx := context.Background()
 tx, _ := db.BeginTx(ctx, nil)
 defer tx.Rollback()
 
-positions, err := store.Append(ctx, tx, es.NoStream(), events)
+result, err := store.Append(ctx, tx, es.NoStream(), events)
 if err != nil {
     log.Fatal(err)
 }
@@ -136,7 +136,8 @@ if err := tx.Commit(); err != nil {
     log.Fatal(err)
 }
 
-fmt.Printf("Event appended at position: %d\n", positions[0])
+fmt.Printf("Event appended at position: %d\n", result.GlobalPositions[0])
+fmt.Printf("Aggregate version: %d\n", result.ToVersion())
 ```
 
 ### 6. Read Events
@@ -147,12 +148,14 @@ aggregateID := "550e8400-e29b-41d4-a716-446655440000" // Use the actual aggregat
 tx, _ := db.BeginTx(ctx, nil)
 defer tx.Rollback()
 
-events, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
+stream, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
 if err != nil {
     log.Fatal(err)
 }
 
-for _, event := range events {
+fmt.Printf("Aggregate version: %d\n", stream.Version())
+
+for _, event := range stream.Events {
     fmt.Printf("Event: %s (version %d)\n", event.EventType, event.AggregateVersion)
 }
 ```
@@ -236,13 +239,13 @@ events := []es.Event{
 }
 
 // Both events appended atomically
-positions, err := store.Append(ctx, tx, es.NoStream(), events)
+result, err := store.Append(ctx, tx, es.NoStream(), events)
 ```
 
 ### Handling Version Conflicts
 
 ```go
-positions, err := store.Append(ctx, tx, es.Exact(currentVersion), events)
+result, err := store.Append(ctx, tx, es.Exact(currentVersion), events)
 if errors.Is(err, store.ErrOptimisticConcurrency) {
     // Another transaction modified this aggregate
     // Retry the entire operation
@@ -258,11 +261,11 @@ aggregateID := uuid.New().String()
 
 // Read from version 5 onwards (e.g., after loading a snapshot)
 fromVersion := int64(5)
-events, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, nil)
+stream, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, nil)
 
 // Read a specific range
 toVersion := int64(10)
-events, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, &toVersion)
+stream, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, &toVersion)
 ```
 
 ## Troubleshooting

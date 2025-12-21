@@ -201,11 +201,13 @@ See the [with-logging example](../examples/with-logging/) for a complete working
 
 ## Distributed Tracing
 
-pupsourcing includes built-in support for distributed tracing through three optional UUID fields in every event:
+pupsourcing includes built-in support for distributed tracing through three optional string fields in every event:
 
 - **TraceID** - Links all events in a distributed operation (e.g., a user request across multiple services)
 - **CorrelationID** - Links related events across aggregates within the same business transaction
 - **CausationID** - Identifies the event or command that caused this event
+
+These fields accept any string format (UUID, ULID, or custom IDs) for maximum flexibility.
 
 ### Using Trace IDs
 
@@ -222,9 +224,8 @@ func HandleRequest(ctx context.Context, store *postgres.Store) error {
     span := trace.SpanFromContext(ctx)
     traceID := span.SpanContext().TraceID()
     
-    // Convert to UUID (OpenTelemetry uses 128-bit trace IDs)
-    var traceUUID uuid.UUID
-    copy(traceUUID[:], traceID[:])
+    // Convert to string - OpenTelemetry trace IDs are 128-bit hex strings
+    traceIDStr := traceID.String()
     
     // Create event with trace ID
     event := es.Event{
@@ -236,13 +237,13 @@ func HandleRequest(ctx context.Context, store *postgres.Store) error {
         Payload:       payload,
         Metadata:      []byte(`{}`),
         CreatedAt:     time.Now(),
-        TraceID:       uuid.NullUUID{UUID: traceUUID, Valid: true},
+        TraceID:       es.NullableString{String: traceIDStr, Valid: true},
     }
     
     tx, _ := db.BeginTx(ctx, nil)
     defer tx.Rollback()
     
-    _, err := store.Append(ctx, tx, []es.Event{event})
+    _, err := store.Append(ctx, tx, es.Any(), []es.Event{event})
     if err != nil {
         return err
     }
@@ -261,17 +262,18 @@ type TracedProjection struct {
 }
 
 func (p *TracedProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
-    // Extract trace ID from event
+    // Extract trace ID from event if present
     if event.TraceID.Valid {
-        var traceID trace.TraceID
-        copy(traceID[:], event.TraceID.UUID[:])
-        
-        // Create new span with the trace ID
-        spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
-            TraceID:    traceID,
-            TraceFlags: trace.FlagsSampled,
-        })
-        ctx = trace.ContextWithSpanContext(ctx, spanCtx)
+        // Parse the trace ID string (assuming it's in hex format)
+        traceID, err := trace.TraceIDFromHex(event.TraceID.String)
+        if err == nil {
+            // Create new span with the trace ID
+            spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
+                TraceID:    traceID,
+                TraceFlags: trace.FlagsSampled,
+            })
+            ctx = trace.ContextWithSpanContext(ctx, spanCtx)
+        }
     }
     
     // Start a new span for projection processing
@@ -279,7 +281,7 @@ func (p *TracedProjection) Handle(ctx context.Context, tx es.DBTX, event *es.Per
         trace.WithAttributes(
             attribute.String("event.type", event.EventType),
             attribute.String("aggregate.type", event.AggregateType),
-            attribute.String("aggregate.id", event.AggregateID.String()),
+            attribute.String("aggregate.id", event.AggregateID),
         ),
     )
     defer span.End()
@@ -296,12 +298,15 @@ func (p *TracedProjection) Handle(ctx context.Context, tx es.DBTX, event *es.Per
 Use CorrelationID and CausationID to track event relationships:
 
 ```go
+// Generate a correlation ID for the business transaction
+correlationID := uuid.New().String()
+
 // Original command creates first event
 originalEvent := es.Event{
     EventID:       uuid.New(),
     AggregateID:   orderID,
     EventType:     "OrderCreated",
-    CorrelationID: uuid.NullUUID{UUID: correlationID, Valid: true},
+    CorrelationID: es.NullableString{String: correlationID, Valid: true},
     // ... other fields
 }
 
@@ -310,8 +315,8 @@ followUpEvent := es.Event{
     EventID:       uuid.New(),
     AggregateID:   inventoryID,
     EventType:     "InventoryReserved",
-    CorrelationID: uuid.NullUUID{UUID: correlationID, Valid: true},
-    CausationID:   uuid.NullUUID{UUID: originalEvent.EventID, Valid: true},
+    CorrelationID: es.NullableString{String: correlationID, Valid: true},
+    CausationID:   es.NullableString{String: originalEvent.EventID.String(), Valid: true},
     // ... other fields
 }
 ```

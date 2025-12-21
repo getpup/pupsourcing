@@ -219,7 +219,7 @@ The event store is an append-only log of all events, providing atomic append ope
 ```go
 type EventStore interface {
     // Append events atomically with version control
-    Append(ctx context.Context, tx es.DBTX, expectedVersion es.ExpectedVersion, events []es.Event) ([]int64, error)
+    Append(ctx context.Context, tx es.DBTX, expectedVersion es.ExpectedVersion, events []es.Event) (es.AppendResult, error)
 }
 ```
 
@@ -478,7 +478,7 @@ tx, _ := db.BeginTx(ctx, nil)
 defer tx.Rollback()
 
 // Library uses your transaction
-positions, err := store.Append(ctx, tx, es.NoStream(), events)
+result, err := store.Append(ctx, tx, es.NoStream(), events)
 if err != nil {
     return err  // Rollback happens in defer
 }
@@ -652,16 +652,16 @@ func (u *User) Apply(event es.PersistedEvent) {
 }
 
 func LoadUser(ctx context.Context, tx es.DBTX, store store.AggregateStreamReader, id string) (*User, error) {
-    events, err := store.ReadAggregateStream(ctx, tx, "User", id, nil, nil)
+    stream, err := store.ReadAggregateStream(ctx, tx, "User", id, nil, nil)
     if err != nil {
         return nil, err
     }
-    if len(events) == 0 {
+    if stream.IsEmpty() {
         return nil, fmt.Errorf("user not found: %s", id)
     }
     
     user := &User{ID: id}
-    for _, event := range events {
+    for _, event := range stream.Events {
         user.Apply(event)
     }
     return user, nil

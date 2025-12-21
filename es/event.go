@@ -73,3 +73,60 @@ type PersistedEvent struct {
 	EventVersion     int
 	EventID          uuid.UUID
 }
+
+// Stream represents the full historical event stream for a single aggregate.
+// It is immutable after creation and is returned from read operations.
+// Stream must never be returned from Append operations.
+type Stream struct {
+	AggregateType string
+	AggregateID   string
+	Events        []PersistedEvent
+}
+
+// Version returns the current version of the aggregate.
+// If the stream is empty (no events), version is 0.
+// Otherwise, version is the AggregateVersion of the last event in the stream.
+func (s Stream) Version() int64 {
+	if len(s.Events) == 0 {
+		return 0
+	}
+	return s.Events[len(s.Events)-1].AggregateVersion
+}
+
+// IsEmpty returns true if the stream contains no events.
+func (s Stream) IsEmpty() bool {
+	return len(s.Events) == 0
+}
+
+// Len returns the number of events in the stream.
+func (s Stream) Len() int {
+	return len(s.Events)
+}
+
+// AppendResult represents the outcome of an Append operation.
+// It contains only the events that were just committed, not the full history.
+// AppendResult must never imply full history - use Stream for that purpose.
+type AppendResult struct {
+	Events          []PersistedEvent
+	GlobalPositions []int64
+}
+
+// FromVersion returns the aggregate version before the append.
+// If no events were appended, returns 0.
+// Otherwise, returns the version immediately before the first appended event.
+func (r AppendResult) FromVersion() int64 {
+	if len(r.Events) == 0 {
+		return 0
+	}
+	return r.Events[0].AggregateVersion - 1
+}
+
+// ToVersion returns the aggregate version after the append.
+// If no events were appended, returns 0.
+// Otherwise, returns the AggregateVersion of the last appended event.
+func (r AppendResult) ToVersion() int64 {
+	if len(r.Events) == 0 {
+		return 0
+	}
+	return r.Events[len(r.Events)-1].AggregateVersion
+}

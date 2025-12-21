@@ -20,7 +20,8 @@ var (
 type EventStore interface {
 	// Append atomically appends one or more events within the provided transaction.
 	// Events must all belong to the same aggregate instance.
-	// Returns the assigned global positions or an error.
+	// Returns an AppendResult containing the persisted events with assigned versions
+	// and their global positions, or an error.
 	//
 	// The expectedVersion parameter controls optimistic concurrency:
 	// - Any(): No version check - always succeeds if no other errors
@@ -39,7 +40,12 @@ type EventStore interface {
 	// another transaction commits conflicting events between the version check and insert
 	// (detected via unique constraint violation).
 	// Returns ErrNoEvents if events slice is empty.
-	Append(ctx context.Context, tx es.DBTX, expectedVersion es.ExpectedVersion, events []es.Event) ([]int64, error)
+	//
+	// After a successful append:
+	// - Use result.ToVersion() to get the new aggregate version
+	// - Use result.Events to access the persisted events with all fields populated
+	// - Use result.GlobalPositions to get the assigned global positions
+	Append(ctx context.Context, tx es.DBTX, expectedVersion es.ExpectedVersion, events []es.Event) (es.AppendResult, error)
 }
 
 // EventReader defines the interface for reading events sequentially.
@@ -52,7 +58,8 @@ type EventReader interface {
 
 // AggregateStreamReader defines the interface for reading events for a specific aggregate.
 type AggregateStreamReader interface {
-	// ReadAggregateStream reads all events for a specific aggregate instance.
+	// ReadAggregateStream reads all events for a specific aggregate instance and returns
+	// them as a Stream containing the aggregate's full history.
 	// Events are ordered by aggregate_version ascending.
 	//
 	// Parameters:
@@ -68,6 +75,8 @@ type AggregateStreamReader interface {
 	// - ReadAggregateStream(ctx, tx, "User", id, nil, ptr(10)) - read up to version 10
 	// - ReadAggregateStream(ctx, tx, "User", id, ptr(5), ptr(10)) - read versions 5-10
 	//
-	// Returns an empty slice if no events match the criteria.
-	ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID string, fromVersion, toVersion *int64) ([]es.PersistedEvent, error)
+	// Returns a Stream with an empty Events slice if no events match the criteria.
+	// Use stream.Version() to get the current aggregate version.
+	// Use stream.IsEmpty() to check if any events were found.
+	ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID string, fromVersion, toVersion *int64) (es.Stream, error)
 }

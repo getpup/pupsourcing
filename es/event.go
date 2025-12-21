@@ -2,6 +2,7 @@
 package es
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,9 +19,9 @@ type Event struct {
 	Payload       []byte
 	Metadata      []byte
 	EventVersion  int
-	CausationID   uuid.NullUUID
-	CorrelationID uuid.NullUUID
-	TraceID       uuid.NullUUID
+	CausationID   sql.NullString
+	CorrelationID sql.NullString
+	TraceID       sql.NullString
 	EventID       uuid.UUID
 }
 
@@ -36,8 +37,8 @@ type PersistedEvent struct {
 	GlobalPosition   int64
 	AggregateVersion int64
 	EventVersion     int
-	CausationID      uuid.NullUUID
-	CorrelationID    uuid.NullUUID
-	TraceID          uuid.NullUUID
+	CausationID      sql.NullString
+	CorrelationID    sql.NullString
+	TraceID          sql.NullString
 	EventID          uuid.UUID
 }

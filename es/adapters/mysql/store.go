@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/google/uuid"
 
 	"github.com/getpup/pupsourcing/es"
 	"github.com/getpup/pupsourcing/es/store"
@@ -175,34 +174,23 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, expectedVersion es.Expec
 		event := &events[i]
 		aggregateVersion := nextVersion + int64(i)
 
-		// Convert UUIDs to binary for MySQL
+		// Convert EventID UUID to binary for MySQL
 		var eventIDBytes []byte
 		eventIDBytes, err = event.EventID.MarshalBinary()
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal event ID: %w", err)
 		}
 
+		// Handle nullable strings for MySQL
 		var traceID, correlationID, causationID interface{}
 		if event.TraceID.Valid {
-			traceIDBytes, marshalErr := event.TraceID.UUID.MarshalBinary()
-			if marshalErr != nil {
-				return nil, fmt.Errorf("failed to marshal trace ID: %w", marshalErr)
-			}
-			traceID = traceIDBytes
+			traceID = event.TraceID.String
 		}
 		if event.CorrelationID.Valid {
-			correlationIDBytes, marshalErr := event.CorrelationID.UUID.MarshalBinary()
-			if marshalErr != nil {
-				return nil, fmt.Errorf("failed to marshal correlation ID: %w", marshalErr)
-			}
-			correlationID = correlationIDBytes
+			correlationID = event.CorrelationID.String
 		}
 		if event.CausationID.Valid {
-			causationIDBytes, marshalErr := event.CausationID.UUID.MarshalBinary()
-			if marshalErr != nil {
-				return nil, fmt.Errorf("failed to marshal causation ID: %w", marshalErr)
-			}
-			causationID = causationIDBytes
+			causationID = event.CausationID.String
 		}
 
 		var result sql.Result
@@ -317,7 +305,6 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 		var e es.PersistedEvent
 		var aggregateID string
 		var eventIDBytes []byte
-		var traceIDBytes, correlationIDBytes, causationIDBytes []byte
 
 		err := rows.Scan(
 			&e.GlobalPosition,
@@ -328,9 +315,9 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 			&e.EventType,
 			&e.EventVersion,
 			&e.Payload,
-			&traceIDBytes,
-			&correlationIDBytes,
-			&causationIDBytes,
+			&e.TraceID,
+			&e.CorrelationID,
+			&e.CausationID,
 			&e.Metadata,
 			&e.CreatedAt,
 		)
@@ -344,28 +331,6 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 		// Parse EventID from binary
 		if err := e.EventID.UnmarshalBinary(eventIDBytes); err != nil {
 			return nil, fmt.Errorf("failed to parse event ID: %w", err)
-		}
-
-		if len(traceIDBytes) > 0 {
-			var traceUUID uuid.UUID
-			if err := traceUUID.UnmarshalBinary(traceIDBytes); err != nil {
-				return nil, fmt.Errorf("failed to parse trace ID: %w", err)
-			}
-			e.TraceID = uuid.NullUUID{UUID: traceUUID, Valid: true}
-		}
-		if len(correlationIDBytes) > 0 {
-			var corrUUID uuid.UUID
-			if err := corrUUID.UnmarshalBinary(correlationIDBytes); err != nil {
-				return nil, fmt.Errorf("failed to parse correlation ID: %w", err)
-			}
-			e.CorrelationID = uuid.NullUUID{UUID: corrUUID, Valid: true}
-		}
-		if len(causationIDBytes) > 0 {
-			var causeUUID uuid.UUID
-			if err := causeUUID.UnmarshalBinary(causationIDBytes); err != nil {
-				return nil, fmt.Errorf("failed to parse causation ID: %w", err)
-			}
-			e.CausationID = uuid.NullUUID{UUID: causeUUID, Valid: true}
 		}
 
 		events = append(events, e)
@@ -433,7 +398,6 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 		var e es.PersistedEvent
 		var aggID string
 		var eventIDBytes []byte
-		var traceIDBytes, correlationIDBytes, causationIDBytes []byte
 
 		err := rows.Scan(
 			&e.GlobalPosition,
@@ -444,9 +408,9 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 			&e.EventType,
 			&e.EventVersion,
 			&e.Payload,
-			&traceIDBytes,
-			&correlationIDBytes,
-			&causationIDBytes,
+			&e.TraceID,
+			&e.CorrelationID,
+			&e.CausationID,
 			&e.Metadata,
 			&e.CreatedAt,
 		)
@@ -460,28 +424,6 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 		// Parse EventID from binary
 		if err := e.EventID.UnmarshalBinary(eventIDBytes); err != nil {
 			return nil, fmt.Errorf("failed to parse event ID: %w", err)
-		}
-
-		if len(traceIDBytes) > 0 {
-			var traceUUID uuid.UUID
-			if err := traceUUID.UnmarshalBinary(traceIDBytes); err != nil {
-				return nil, fmt.Errorf("failed to parse trace ID: %w", err)
-			}
-			e.TraceID = uuid.NullUUID{UUID: traceUUID, Valid: true}
-		}
-		if len(correlationIDBytes) > 0 {
-			var corrUUID uuid.UUID
-			if err := corrUUID.UnmarshalBinary(correlationIDBytes); err != nil {
-				return nil, fmt.Errorf("failed to parse correlation ID: %w", err)
-			}
-			e.CorrelationID = uuid.NullUUID{UUID: corrUUID, Valid: true}
-		}
-		if len(causationIDBytes) > 0 {
-			var causeUUID uuid.UUID
-			if err := causeUUID.UnmarshalBinary(causationIDBytes); err != nil {
-				return nil, fmt.Errorf("failed to parse causation ID: %w", err)
-			}
-			e.CausationID = uuid.NullUUID{UUID: causeUUID, Valid: true}
 		}
 
 		events = append(events, e)

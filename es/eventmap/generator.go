@@ -125,13 +125,16 @@ func (g *Generator) Discover() error {
 }
 
 // extractVersion extracts the version number from the directory path.
-// Returns 1 if no version directory is found.
+// Returns 1 if no version directory is found or if parsing fails.
 func (g *Generator) extractVersion(path string) int {
 	versionRegex := regexp.MustCompile(`/v(\d+)/`)
 	matches := versionRegex.FindStringSubmatch(path)
 	if len(matches) > 1 {
 		var version int
-		fmt.Sscanf(matches[1], "%d", &version)
+		_, err := fmt.Sscanf(matches[1], "%d", &version)
+		if err != nil || version < 1 {
+			return 1 // Default version on parse error
+		}
 		return version
 	}
 	return 1 // Default version

@@ -15,11 +15,11 @@ import (
 
 // EventInfo represents a discovered domain event struct.
 type EventInfo struct {
-	Name        string // Struct name (e.g., "UserRegistered")
-	PackageName string // Package name (e.g., "v1")
-	ImportPath  string // Full import path (e.g., "internal/domain/events/v1")
-	Version     int    // Event version (derived from directory, e.g., 1 for v1/)
+	Name        string
+	PackageName string
+	ImportPath  string
 	Fields      []FieldInfo
+	Version     int
 }
 
 // FieldInfo represents a struct field.
@@ -32,11 +32,11 @@ type FieldInfo struct {
 
 // Config configures the code generation.
 type Config struct {
-	InputDir     string // Directory containing domain events
-	OutputDir    string // Directory where generated code will be written
-	OutputFile   string // Name of the generated file (default: event_mapping.gen.go)
-	PackageName  string // Package name for generated code
-	ModulePath   string // Go module path for generating import paths
+	InputDir    string // Directory containing domain events
+	OutputDir   string // Directory where generated code will be written
+	OutputFile  string // Name of the generated file (default: event_mapping.gen.go)
+	PackageName string // Package name for generated code
+	ModulePath  string // Go module path for generating import paths
 }
 
 // DefaultConfig returns default configuration.

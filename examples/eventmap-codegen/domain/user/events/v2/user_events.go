@@ -5,6 +5,6 @@ package v2
 type UserRegistered struct {
 	Email        string `json:"email"`
 	Name         string `json:"name"`
-	Country      string `json:"country"`      // New in v2
+	Country      string `json:"country"`       // New in v2
 	RegisteredAt int64  `json:"registered_at"` // New in v2: Unix timestamp
 }

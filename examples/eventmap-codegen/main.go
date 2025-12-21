@@ -7,11 +7,12 @@ import (
 	"log"
 	"time"
 
-	"github.com/getpup/pupsourcing/es"
-	"github.com/getpup/pupsourcing/examples/eventmap-codegen/domain/user/events/v1"
-	"github.com/getpup/pupsourcing/examples/eventmap-codegen/domain/user/events/v2"
-	"github.com/getpup/pupsourcing/examples/eventmap-codegen/infrastructure/persistence"
 	"github.com/google/uuid"
+
+	"github.com/getpup/pupsourcing/es"
+	v1 "github.com/getpup/pupsourcing/examples/eventmap-codegen/domain/user/events/v1"
+	v2 "github.com/getpup/pupsourcing/examples/eventmap-codegen/domain/user/events/v2"
+	"github.com/getpup/pupsourcing/examples/eventmap-codegen/infrastructure/persistence"
 )
 
 func main() {
@@ -22,7 +23,7 @@ func main() {
 	// Example 1: Convert v1 domain events to ES events
 	fmt.Println("Example 1: Domain Events V1 → ES Events")
 	fmt.Println("----------------------------------------")
-	
+
 	v1Events := []any{
 		v1.UserRegistered{
 			Email: "alice@example.com",
@@ -35,7 +36,7 @@ func main() {
 	}
 
 	userID := uuid.New().String()
-	
+
 	esEvents, err := persistence.ToESEvents(
 		"User",
 		userID,
@@ -62,7 +63,7 @@ func main() {
 	// Example 2: Convert v2 domain event to ES event
 	fmt.Println("Example 2: Domain Event V2 → ES Event")
 	fmt.Println("--------------------------------------")
-	
+
 	v2Event := v2.UserRegistered{
 		Email:        "bob@example.com",
 		Name:         "Bob Johnson",

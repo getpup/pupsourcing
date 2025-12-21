@@ -33,7 +33,7 @@ func (ns *NullableString) Scan(value interface{}) error {
 
 // Value implements the driver.Valuer interface.
 func (ns NullableString) Value() (driver.Value, error) {
-	if !ns.Valid {
+	if !ns.Valid || ns.String == "" {
 		return nil, nil
 	}
 	return ns.String, nil

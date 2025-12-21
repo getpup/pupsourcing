@@ -31,10 +31,10 @@ Manually mapping between these layers is error-prone and repetitive. This tool:
 
 ## Installation
 
-Install the tool to your Go toolchain (recommended):
+**Go 1.24+** (recommended): Use the new `go get -tool` feature to install tools locally to your module:
 
 ```bash
-go install github.com/getpup/pupsourcing/cmd/eventmap-gen@latest
+go get -tool github.com/getpup/pupsourcing/cmd/eventmap-gen@latest
 ```
 
 This allows you to use it with `go generate` directives:
@@ -43,7 +43,13 @@ This allows you to use it with `go generate` directives:
 //go:generate go tool eventmap-gen -input ../../domain/events -output . -package persistence
 ```
 
-Or run directly without installation:
+**Go 1.23 and earlier**: Use `go run` directly in your `go:generate` directives (no installation needed):
+
+```go
+//go:generate go run github.com/getpup/pupsourcing/cmd/eventmap-gen -input ../../domain/events -output . -package persistence
+```
+
+Or run the tool directly from the command line:
 
 ```bash
 go run github.com/getpup/pupsourcing/cmd/eventmap-gen [flags]
@@ -487,19 +493,21 @@ eventmap-gen \
 
 ### Using with `go generate`
 
-The recommended approach is to add `//go:generate` directives in your infrastructure code. After installing the tool with `go install`, use:
+The recommended approach is to add `//go:generate` directives in your infrastructure code.
+
+**For Go 1.24+**, after installing with `go get -tool`:
 
 ```go
 //go:generate go tool eventmap-gen -input ../../domain/events -output . -package persistence
 ```
 
 **Why use `go tool`?**
-- Finds the tool in your Go toolchain (`$GOPATH/bin` or `$GOBIN`)
+- Uses the module's local tool installation (via `go get -tool`)
 - No need to specify full import path
 - Faster execution (no recompilation)
-- Standard Go convention for installed tools
+- Version pinned to your module's requirements
 
-If you prefer not to install the tool, you can use `go run`:
+**For Go 1.23 and earlier**, use `go run`:
 
 ```go
 //go:generate go run github.com/getpup/pupsourcing/cmd/eventmap-gen -input ../../domain/events -output . -package persistence

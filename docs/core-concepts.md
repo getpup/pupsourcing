@@ -2,6 +2,15 @@
 
 Fundamental principles of event sourcing with pupsourcing.
 
+## Table of Contents
+
+- [Event Sourcing Fundamentals](#event-sourcing-fundamentals)
+- [Core Components](#core-components)
+- [Key Concepts](#key-concepts)
+- [Design Principles](#design-principles)
+- [Common Patterns](#common-patterns)
+- [See Also](#see-also)
+
 ## Event Sourcing Fundamentals
 
 ### Definition

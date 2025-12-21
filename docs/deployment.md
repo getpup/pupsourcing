@@ -2,6 +2,16 @@
 
 This guide covers production deployment patterns, monitoring, and operational best practices for pupsourcing.
 
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Deployment Patterns](#deployment-patterns)
+- [Configuration Management](#configuration-management)
+- [Monitoring](#monitoring)
+- [Operational Best Practices](#operational-best-practices)
+- [Troubleshooting](#troubleshooting)
+- [See Also](#see-also)
+
 ## Prerequisites
 
 Before deploying, you need to implement a `run-projections` command in your application. This command should:

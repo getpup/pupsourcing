@@ -2,6 +2,17 @@
 
 This document explains pupsourcing concepts in terms of other popular event sourcing and event streaming systems, helping users migrate or understand the library from different perspectives.
 
+## Table of Contents
+
+- [Quick Reference](#quick-reference)
+- [Apache Kafka](#apache-kafka)
+- [EventStoreDB](#eventstoredb)
+- [Axon Framework (Java)](#axon-framework-java)
+- [Marten (C#/.NET)](#marten-cnet)
+- [Comparison Summary](#comparison-summary)
+- [Terminology Translation](#terminology-translation)
+- [See Also](#see-also)
+
 ## Quick Reference
 
 | pupsourcing | Kafka | EventStoreDB | Axon Framework |

@@ -117,7 +117,7 @@ replace github.com/getpup/pupsourcing => ` + repoRoot + `
 
 	// Verify the generated file exists
 	generatedFile := filepath.Join(outputDir, "event_mapping.gen.go")
-	if _, err := os.Stat(generatedFile); err != nil {
+	if _, err = os.Stat(generatedFile); err != nil {
 		t.Fatalf("Generated file not found: %v", err)
 	}
 
@@ -406,7 +406,7 @@ func TestUnknownEventVersion(t *testing.T) {
 }
 `
 
-	if err := os.WriteFile(filepath.Join(outputDir, "integration_test.go"), []byte(testCode), 0o644); err != nil {
+	if err = os.WriteFile(filepath.Join(outputDir, "integration_test.go"), []byte(testCode), 0o644); err != nil {
 		t.Fatalf("Failed to write test code: %v", err)
 	}
 

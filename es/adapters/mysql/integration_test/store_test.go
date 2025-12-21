@@ -180,19 +180,19 @@ func TestAppendEvents(t *testing.T) {
 	}
 	defer tx.Rollback()
 
-	positions, err := store.Append(ctx, tx, es.Any(), events)
+	result, err := store.Append(ctx, tx, es.Any(), events)
 	if err != nil {
 		t.Fatalf("Failed to append events: %v", err)
 	}
 
-	if len(positions) != len(events) {
-		t.Errorf("Expected %d positions, got %d", len(events), len(positions))
+	if len(result.GlobalPositions) != len(events) {
+		t.Errorf("Expected %d positions, got %d", len(events), len(result.GlobalPositions))
 	}
 
 	// Verify positions are sequential
-	for i := 1; i < len(positions); i++ {
-		if positions[i] != positions[i-1]+1 {
-			t.Errorf("Positions not sequential: %v", positions)
+	for i := 1; i < len(result.GlobalPositions); i++ {
+		if result.GlobalPositions[i] != result.GlobalPositions[i-1]+1 {
+			t.Errorf("Positions not sequential: %v", result.GlobalPositions)
 		}
 	}
 
@@ -394,17 +394,17 @@ func TestReadAggregateStream_FullStream(t *testing.T) {
 	tx2, _ := db.BeginTx(ctx, nil)
 	defer tx2.Rollback()
 
-	readEvents, err := store.ReadAggregateStream(ctx, tx2, "TestAggregate", aggregateID, nil, nil)
+	stream, err := store.ReadAggregateStream(ctx, tx2, "TestAggregate", aggregateID, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to read aggregate stream: %v", err)
 	}
 
-	if len(readEvents) != 3 {
-		t.Errorf("Expected 3 events, got %d", len(readEvents))
+	if stream.Len() != 3 {
+		t.Errorf("Expected 3 events, got %d", stream.Len())
 	}
 
 	// Verify events are ordered by aggregate_version
-	for i, event := range readEvents {
+	for i, event := range stream.Events {
 		expectedVersion := int64(i + 1)
 		if event.AggregateVersion != expectedVersion {
 			t.Errorf("Event %d: expected version %d, got %d", i, expectedVersion, event.AggregateVersion)
@@ -474,21 +474,21 @@ func TestReadAggregateStream_WithFromVersion(t *testing.T) {
 	defer tx2.Rollback()
 
 	fromVersion := int64(2)
-	readEvents, err := store.ReadAggregateStream(ctx, tx2, "TestAggregate", aggregateID, &fromVersion, nil)
+	stream, err := store.ReadAggregateStream(ctx, tx2, "TestAggregate", aggregateID, &fromVersion, nil)
 	if err != nil {
 		t.Fatalf("Failed to read aggregate stream: %v", err)
 	}
 
-	if len(readEvents) != 2 {
-		t.Errorf("Expected 2 events, got %d", len(readEvents))
+	if stream.Len() != 2 {
+		t.Errorf("Expected 2 events, got %d", stream.Len())
 	}
 
 	// Verify we got versions 2 and 3
-	if len(readEvents) > 0 && readEvents[0].AggregateVersion != 2 {
-		t.Errorf("First event: expected version 2, got %d", readEvents[0].AggregateVersion)
+	if len(stream.Events) > 0 && stream.Events[0].AggregateVersion != 2 {
+		t.Errorf("First event: expected version 2, got %d", stream.Events[0].AggregateVersion)
 	}
-	if len(readEvents) > 1 && readEvents[1].AggregateVersion != 3 {
-		t.Errorf("Second event: expected version 3, got %d", readEvents[1].AggregateVersion)
+	if len(stream.Events) > 1 && stream.Events[1].AggregateVersion != 3 {
+		t.Errorf("Second event: expected version 3, got %d", stream.Events[1].AggregateVersion)
 	}
 }
 

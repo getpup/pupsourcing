@@ -16,7 +16,7 @@ func TestGenerator_Discover(t *testing.T) {
 		ModulePath:  "github.com/getpup/pupsourcing/es/eventmap/testdata/events",
 	}
 
-	gen := NewGenerator(config)
+	gen := NewGenerator(&config)
 	err := gen.Discover()
 	if err != nil {
 		t.Fatalf("Discover() failed: %v", err)
@@ -85,7 +85,7 @@ func TestGenerator_ExtractVersion(t *testing.T) {
 	}
 
 	config := Config{}
-	gen := NewGenerator(config)
+	gen := NewGenerator(&config)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -108,7 +108,7 @@ func TestGenerator_Generate(t *testing.T) {
 		ModulePath:  "github.com/getpup/pupsourcing/es/eventmap/testdata/events",
 	}
 
-	gen := NewGenerator(config)
+	gen := NewGenerator(&config)
 
 	// Discover events
 	if err := gen.Discover(); err != nil {
@@ -188,7 +188,7 @@ func TestGenerator_GenerateNoEvents(t *testing.T) {
 		PackageName: "generated",
 	}
 
-	gen := NewGenerator(config)
+	gen := NewGenerator(&config)
 
 	// Discover should succeed but find nothing
 	if err := gen.Discover(); err != nil {

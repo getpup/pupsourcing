@@ -108,7 +108,7 @@ func main() {
 	}
 
 	// Create generator
-	generator := eventmap.NewGenerator(config)
+	generator := eventmap.NewGenerator(&config)
 
 	// Discover domain events
 	fmt.Printf("Discovering events in %s...\n", absInputDir)

@@ -52,3 +52,4 @@ examples/*/single-worker
 examples/*/stop-resume
 examples/*/with-logging
 examples/*/worker-pool
+eventmap-gen

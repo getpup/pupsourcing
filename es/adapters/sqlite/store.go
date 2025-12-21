@@ -180,16 +180,16 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, expectedVersion es.Expec
 		event := &events[i]
 		aggregateVersion := nextVersion + int64(i)
 
-		// Convert UUIDs to strings for SQLite
+		// Handle nullable strings for SQLite
 		var traceID, correlationID, causationID interface{}
 		if event.TraceID.Valid {
-			traceID = event.TraceID.UUID.String()
+			traceID = event.TraceID.String
 		}
 		if event.CorrelationID.Valid {
-			correlationID = event.CorrelationID.UUID.String()
+			correlationID = event.CorrelationID.String
 		}
 		if event.CausationID.Valid {
-			causationID = event.CausationID.UUID.String()
+			causationID = event.CausationID.String
 		}
 
 		result, execErr := tx.ExecContext(ctx, insertQuery,
@@ -299,7 +299,6 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 	for rows.Next() {
 		var e es.PersistedEvent
 		var aggregateID, eventID string
-		var traceID, correlationID, causationID sql.NullString
 		var createdAt string
 
 		err := rows.Scan(
@@ -311,9 +310,9 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 			&e.EventType,
 			&e.EventVersion,
 			&e.Payload,
-			&traceID,
-			&correlationID,
-			&causationID,
+			&e.TraceID,
+			&e.CorrelationID,
+			&e.CausationID,
 			&e.Metadata,
 			&createdAt,
 		)
@@ -328,28 +327,6 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 		e.EventID, err = uuid.Parse(eventID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse event ID: %w", err)
-		}
-
-		if traceID.Valid {
-			parsedUUID, parseErr := uuid.Parse(traceID.String)
-			if parseErr != nil {
-				return nil, fmt.Errorf("failed to parse trace ID: %w", parseErr)
-			}
-			e.TraceID = uuid.NullUUID{UUID: parsedUUID, Valid: true}
-		}
-		if correlationID.Valid {
-			parsedUUID, parseErr := uuid.Parse(correlationID.String)
-			if parseErr != nil {
-				return nil, fmt.Errorf("failed to parse correlation ID: %w", parseErr)
-			}
-			e.CorrelationID = uuid.NullUUID{UUID: parsedUUID, Valid: true}
-		}
-		if causationID.Valid {
-			parsedUUID, parseErr := uuid.Parse(causationID.String)
-			if parseErr != nil {
-				return nil, fmt.Errorf("failed to parse causation ID: %w", parseErr)
-			}
-			e.CausationID = uuid.NullUUID{UUID: parsedUUID, Valid: true}
 		}
 
 		// Parse timestamp
@@ -422,7 +399,6 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 	for rows.Next() {
 		var e es.PersistedEvent
 		var aggID, eventID string
-		var traceID, correlationID, causationID sql.NullString
 		var createdAt string
 
 		err := rows.Scan(
@@ -434,9 +410,9 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 			&e.EventType,
 			&e.EventVersion,
 			&e.Payload,
-			&traceID,
-			&correlationID,
-			&causationID,
+			&e.TraceID,
+			&e.CorrelationID,
+			&e.CausationID,
 			&e.Metadata,
 			&createdAt,
 		)
@@ -451,28 +427,6 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 		e.EventID, err = uuid.Parse(eventID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse event ID: %w", err)
-		}
-
-		if traceID.Valid {
-			parsedUUID, parseErr := uuid.Parse(traceID.String)
-			if parseErr != nil {
-				return nil, fmt.Errorf("failed to parse trace ID: %w", parseErr)
-			}
-			e.TraceID = uuid.NullUUID{UUID: parsedUUID, Valid: true}
-		}
-		if correlationID.Valid {
-			parsedUUID, parseErr := uuid.Parse(correlationID.String)
-			if parseErr != nil {
-				return nil, fmt.Errorf("failed to parse correlation ID: %w", parseErr)
-			}
-			e.CorrelationID = uuid.NullUUID{UUID: parsedUUID, Valid: true}
-		}
-		if causationID.Valid {
-			parsedUUID, parseErr := uuid.Parse(causationID.String)
-			if parseErr != nil {
-				return nil, fmt.Errorf("failed to parse causation ID: %w", parseErr)
-			}
-			e.CausationID = uuid.NullUUID{UUID: parsedUUID, Valid: true}
 		}
 
 		// Parse timestamp

@@ -9,16 +9,16 @@ import (
 	"github.com/google/uuid"
 )
 
-// NullableString represents a string that may be null.
+// NullString represents a string that may be null.
 // It implements database/sql Scanner and Valuer interfaces for SQL interop,
 // but avoids direct dependency on sql.NullString in public types.
-type NullableString struct {
+type NullString struct {
 	String string
 	Valid  bool // Valid is true if String is not NULL
 }
 
 // Scan implements the sql.Scanner interface.
-func (ns *NullableString) Scan(value interface{}) error {
+func (ns *NullString) Scan(value interface{}) error {
 	if value == nil {
 		ns.String, ns.Valid = "", false
 		return nil
@@ -32,7 +32,7 @@ func (ns *NullableString) Scan(value interface{}) error {
 }
 
 // Value implements the driver.Valuer interface.
-func (ns NullableString) Value() (driver.Value, error) {
+func (ns NullString) Value() (driver.Value, error) {
 	if !ns.Valid || ns.String == "" {
 		return nil, nil
 	}
@@ -49,10 +49,10 @@ type Event struct {
 	AggregateID   string
 	Payload       []byte
 	Metadata      []byte
+	CausationID   NullString
+	CorrelationID NullString
+	TraceID       NullString
 	EventVersion  int
-	CausationID   NullableString
-	CorrelationID NullableString
-	TraceID       NullableString
 	EventID       uuid.UUID
 }
 
@@ -63,13 +63,13 @@ type PersistedEvent struct {
 	AggregateType    string
 	EventType        string
 	AggregateID      string
-	Payload          []byte
+	CausationID      NullString
 	Metadata         []byte
+	Payload          []byte
+	CorrelationID    NullString
+	TraceID          NullString
 	GlobalPosition   int64
 	AggregateVersion int64
 	EventVersion     int
-	CausationID      NullableString
-	CorrelationID    NullableString
-	TraceID          NullableString
 	EventID          uuid.UUID
 }

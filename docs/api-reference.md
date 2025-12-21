@@ -19,30 +19,21 @@ Represents an immutable domain event before persistence.
 
 ```go
 type Event struct {
-    // Identity
-    EventID       uuid.UUID      // Unique event identifier
+    CreatedAt     time.Time
     AggregateType string          // Type of aggregate (e.g., "User", "Order")
-    AggregateID   string          // Aggregate instance identifier (UUID string, email, or any identifier)
     EventType     string          // Type of event (e.g., "UserCreated")
-    
-    // Versioning
+    AggregateID   string          // Aggregate instance identifier (UUID string, email, or any identifier)
+    Payload       []byte          // Event data (typically JSON)
+    Metadata      []byte          // Additional metadata (typically JSON)
     EventVersion  int             // Schema version of this event type (default: 1)
-    
-    // Data
-    Payload    []byte             // Event data (typically JSON)
-    Metadata   []byte             // Additional metadata (typically JSON)
-    
-    // Tracing (optional)
-    TraceID       uuid.NullUUID   // Distributed tracing ID
-    CorrelationID uuid.NullUUID   // Links related events across aggregates
     CausationID   uuid.NullUUID   // ID of event/command that caused this event
-    
-    // Timestamp
-    CreatedAt time.Time           // When event occurred
+    CorrelationID uuid.NullUUID   // Links related events across aggregates
+    TraceID       uuid.NullUUID   // Distributed tracing ID
+    EventID       uuid.UUID       // Unique event identifier
 }
 ```
 
-**Note:** `AggregateVersion` and `GlobalPosition` are assigned by the store during `Append`.
+**Note:** `AggregateVersion` and `GlobalPosition` are assigned by the store during `Append`. The field order is optimized for memory layout.
 
 ### es.ExpectedVersion
 
@@ -94,11 +85,23 @@ Represents an event that has been stored, including position information.
 
 ```go
 type PersistedEvent struct {
-    // All fields from Event, plus:
-    GlobalPosition    int64  // Position in global event log
-    AggregateVersion  int64  // Version of aggregate after this event
+    CreatedAt        time.Time
+    AggregateType    string
+    EventType        string
+    AggregateID      string
+    Payload          []byte
+    Metadata         []byte
+    GlobalPosition   int64       // Position in global event log (assigned by store)
+    AggregateVersion int64       // Version of aggregate after this event (assigned by store)
+    EventVersion     int
+    CausationID      uuid.NullUUID
+    CorrelationID    uuid.NullUUID
+    TraceID          uuid.NullUUID
+    EventID          uuid.UUID
 }
 ```
+
+**Note:** The field order is optimized for memory layout.
 
 ### es.DBTX
 

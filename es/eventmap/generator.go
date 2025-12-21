@@ -726,7 +726,7 @@ func TestEventTypeOf(t *testing.T) {
 
 	// Generate test cases for each event
 	for _, event := range g.events {
-		sb.WriteString(fmt.Sprintf("\t\t{\n"))
+		sb.WriteString("\t\t{\n")
 		sb.WriteString(fmt.Sprintf("\t\t\tname:      %q,\n", event.Name+"V"+fmt.Sprint(event.Version)))
 		sb.WriteString(fmt.Sprintf("\t\t\tevent:     %s.%s{},\n", event.PackageName, event.Name))
 		sb.WriteString(fmt.Sprintf("\t\t\twantType:  %q,\n", event.Name))
@@ -734,7 +734,7 @@ func TestEventTypeOf(t *testing.T) {
 		sb.WriteString("\t\t},\n")
 
 		// Test pointer variant
-		sb.WriteString(fmt.Sprintf("\t\t{\n"))
+		sb.WriteString("\t\t{\n")
 		sb.WriteString(fmt.Sprintf("\t\t\tname:      %q,\n", event.Name+"V"+fmt.Sprint(event.Version)+"Pointer"))
 		sb.WriteString(fmt.Sprintf("\t\t\tevent:     &%s.%s{},\n", event.PackageName, event.Name))
 		sb.WriteString(fmt.Sprintf("\t\t\twantType:  %q,\n", event.Name))

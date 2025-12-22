@@ -205,7 +205,7 @@ See the [complete working example](../examples/single-worker/main.go) that ties 
 ## Next Steps
 
 - Learn [Core Concepts](./core-concepts.md) to understand event sourcing with pupsourcing
-- Explore [Projections](./projections.md) to build read models
+- Explore [Projections & Scaling](./scaling.md) to build read models
 - See [Scaling Guide](./scaling.md) for production deployments
 - Browse [Examples](../examples/) for more patterns
 

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -228,8 +229,9 @@ func main() {
 	fmt.Println()
 
 	// Simulate processing events through the projection
+	// nolint:gocritic // it is ok for example
 	for _, pe := range persistedEvents {
-		if err := projection.Handle(nil, nil, &pe); err != nil {
+		if err = projection.Handle(context.Background(), nil, pe); err != nil {
 			log.Printf("Error handling event: %v", err)
 		}
 	}

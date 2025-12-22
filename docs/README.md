@@ -8,10 +8,11 @@ Production-ready infrastructure for event sourcing in Go applications.
 2. **[Core Concepts](./core-concepts.md)** - Event sourcing fundamentals
 3. **[Database Adapters](./adapters.md)** - PostgreSQL, SQLite, and MySQL/MariaDB
 4. **[Projections & Scaling](./scaling.md)** - Horizontal scaling and production patterns
-5. **[Observability](./observability.md)** - Logging, tracing, and monitoring
-6. **[API Reference](./api-reference.md)** - Complete API documentation
-7. **[Industry Alignment](./industry-alignment.md)** - Comparison with other systems
-8. **[Deployment Guide](./deployment.md)** - Production deployment and operations
+5. **[Event Mapping Code Generation](./eventmap-gen.md)** - Type-safe domain event mapping
+6. **[Observability](./observability.md)** - Logging, tracing, and monitoring
+7. **[API Reference](./api-reference.md)** - Complete API documentation
+8. **[Industry Alignment](./industry-alignment.md)** - Comparison with other systems
+9. **[Deployment Guide](./deployment.md)** - Production deployment and operations
 
 ## Quick Navigation
 

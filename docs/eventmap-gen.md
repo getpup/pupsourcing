@@ -400,7 +400,10 @@ import (
 // Repository implements the domain repository interface using event sourcing.
 type Repository struct {
     db    *sql.DB
-    store es.EventStore
+    store interface {
+        store.EventStore
+        store.AggregateStreamReader
+    }
 }
 
 func NewRepository(db *sql.DB) *Repository {
@@ -608,19 +611,7 @@ esEvents, err := generated.ToESEvents("User", userID, []any{event1, event2})
 
 Using type-safe slices with generics provides better compile-time safety while maintaining flexibility.
 
-### 6. Don't Delete Old Versions
-
-Old versions must remain for replaying historical events:
-
-```
-events/
-  v1/
-    user_registered.go  # Keep this even if you move to v2
-  v2/
-    user_registered.go  # New version
-```
-
-### 7. Document Breaking Changes
+### 6. Document Breaking Changes
 
 Add comments when introducing breaking schema changes:
 

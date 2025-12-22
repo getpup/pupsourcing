@@ -26,7 +26,8 @@ type Projection interface {
 	// Handle processes a single event.
 	// Return an error to stop projection processing.
 	// Event is passed by value to enforce immutability (events are value objects).
-	// The underlying data (Payload, Metadata) is not copied, only the struct references.
+	// Large data (Payload, Metadata byte slices) share references to their backing arrays,
+	// so the actual payload/metadata data is not deep-copied.
 	//
 	//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
 	Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error
@@ -197,6 +198,10 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 	}
 
 	// Process events with partition filter
+	// Note: Events are passed by value to projection handlers to enforce immutability.
+	// This creates a 232-byte copy per event, but large data (Payload, Metadata) is not deep-copied
+	// since slices share references to their backing arrays. The immutability guarantee
+	// is more valuable than the minimal copy cost in event processing workloads.
 	var lastPosition int64
 	var processedCount int
 	var skippedCount int

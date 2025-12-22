@@ -262,9 +262,9 @@ func FromESEvent(pe es.PersistedEvent) (any, error)
 Converts a single persisted event to a domain event. This is particularly useful in projection handlers where you process events one at a time:
 
 ```go
-func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     // Convert the persisted event to a domain event
-    domainEvent, err := generated.FromESEvent(*event)
+    domainEvent, err := generated.FromESEvent(event)
     if err != nil {
         return fmt.Errorf("failed to convert event: %w", err)
     }

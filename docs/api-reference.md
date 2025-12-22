@@ -26,9 +26,9 @@ type Event struct {
     Payload       []byte          // Event data (typically JSON)
     Metadata      []byte          // Additional metadata (typically JSON)
     EventVersion  int             // Schema version of this event type (default: 1)
-    CausationID   es.NullableString  // ID of event/command that caused this event
-    CorrelationID es.NullableString  // Links related events across aggregates
-    TraceID       es.NullableString  // Distributed tracing ID
+    CausationID   es.NullString  // ID of event/command that caused this event
+    CorrelationID es.NullString  // Links related events across aggregates
+    TraceID       es.NullString  // Distributed tracing ID
     EventID       uuid.UUID       // Unique event identifier
 }
 ```
@@ -94,9 +94,9 @@ type PersistedEvent struct {
     GlobalPosition   int64       // Position in global event log (assigned by store)
     AggregateVersion int64       // Version of aggregate after this event (assigned by store)
     EventVersion     int
-    CausationID      es.NullableString
-    CorrelationID    es.NullableString
-    TraceID          es.NullableString
+    CausationID      es.NullString
+    CorrelationID    es.NullString
+    TraceID          es.NullString
     EventID          uuid.UUID
 }
 ```

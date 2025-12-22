@@ -247,7 +247,7 @@ func HandleRequest(ctx context.Context, store *postgres.Store) error {
         Payload:       payload,
         Metadata:      []byte(`{}`),
         CreatedAt:     time.Now(),
-        TraceID:       es.NullableString{String: traceIDStr, Valid: true},
+        TraceID:       es.NullString{String: traceIDStr, Valid: true},
     }
     
     tx, _ := db.BeginTx(ctx, nil)
@@ -316,7 +316,7 @@ originalEvent := es.Event{
     EventID:       uuid.New(),
     AggregateID:   orderID,
     EventType:     "OrderCreated",
-    CorrelationID: es.NullableString{String: correlationID, Valid: true},
+    CorrelationID: es.NullString{String: correlationID, Valid: true},
     // ... other fields
 }
 
@@ -325,8 +325,8 @@ followUpEvent := es.Event{
     EventID:       uuid.New(),
     AggregateID:   inventoryID,
     EventType:     "InventoryReserved",
-    CorrelationID: es.NullableString{String: correlationID, Valid: true},
-    CausationID:   es.NullableString{String: originalEvent.EventID.String(), Valid: true},
+    CorrelationID: es.NullString{String: correlationID, Valid: true},
+    CausationID:   es.NullString{String: originalEvent.EventID.String(), Valid: true},
     // ... other fields
 }
 ```

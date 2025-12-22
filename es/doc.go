@@ -46,7 +46,6 @@
 //	    {
 //	        AggregateType:    "Order",
 //	        AggregateID:      orderID,
-//	        AggregateVersion: 1,
 //	        EventID:          uuid.New(),
 //	        EventType:        "OrderCreated",
 //	        EventVersion:     1,
@@ -56,7 +55,7 @@
 //	    },
 //	}
 //
-//	positions, err := store.Append(ctx, tx, events)
+//	result, err := store.Append(ctx, tx, es.NoStream(), events)
 //	if err != nil {
 //	    return err
 //	}
@@ -76,7 +75,8 @@
 //	    return nil
 //	}
 //
-//	processor := projection.NewProcessor(db, store, projection.DefaultProcessorConfig())
+//	config := projection.DefaultProcessorConfig()
+//	processor := projection.NewProcessor(db, store, &config)
 //	processor.Run(ctx, &MyProjection{})
 //
 // # Optimistic Concurrency

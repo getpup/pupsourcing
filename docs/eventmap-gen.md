@@ -245,7 +245,7 @@ Converts domain events to `es.Event` instances with:
 
 The generic type parameter `T` allows for type-safe event slices. You can pass `[]YourEventType` instead of `[]any` for better type safety. Using `[]any` is still supported for convenience when mixing event types.
 
-### 3. `FromESEvents` - ES to Domain Conversion
+### 3. `FromESEvents` - ES to Domain Conversion (Batch)
 
 ```go
 func FromESEvents[T any](events []es.PersistedEvent) ([]T, error)
@@ -253,7 +253,35 @@ func FromESEvents[T any](events []es.PersistedEvent) ([]T, error)
 
 Converts persisted events back to domain events using generics. Validates event type and version, then unmarshals JSON payload.
 
-### 4. Type-Safe Helpers
+### 4. `FromESEvent` - ES to Domain Conversion (Single)
+
+```go
+func FromESEvent(pe es.PersistedEvent) (any, error)
+```
+
+Converts a single persisted event to a domain event. This is particularly useful in projection handlers where you process events one at a time:
+
+```go
+func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+    // Convert the persisted event to a domain event
+    domainEvent, err := generated.FromESEvent(*event)
+    if err != nil {
+        return fmt.Errorf("failed to convert event: %w", err)
+    }
+    
+    // Handle the specific event type
+    switch e := domainEvent.(type) {
+    case v1.UserRegistered:
+        return p.handleUserRegistered(ctx, tx, e)
+    case v1.UserEmailChanged:
+        return p.handleUserEmailChanged(ctx, tx, e)
+    default:
+        return nil // Ignore unknown events
+    }
+}
+```
+
+### 5. Type-Safe Helpers
 
 For each event version, generates:
 
@@ -272,7 +300,7 @@ func FromUserRegisteredV1(
 ) (v1.UserRegistered, error)
 ```
 
-### 5. Options Pattern
+### 6. Options Pattern
 
 ```go
 type Option func(*eventOptions)
@@ -294,7 +322,7 @@ esEvents, err := generated.ToESEvents(
 )
 ```
 
-### 6. Unit Tests
+### 7. Unit Tests
 
 The tool automatically generates comprehensive unit tests in a separate `_test.go` file. The generated tests include:
 

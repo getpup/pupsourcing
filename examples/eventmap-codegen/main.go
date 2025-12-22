@@ -216,7 +216,35 @@ func main() {
 	fmt.Printf("  Name: %s\n", restoredSpecific.Name)
 	fmt.Println()
 
+	// Example 5: Using FromESEvent in projection handlers
+	fmt.Println("Example 5: Using FromESEvent in Projection Handlers")
+	fmt.Println("----------------------------------------------------")
+
+	// Create a projection instance
+	projection := &UserProjection{}
+
+	fmt.Printf("Projection Name: %s\n", projection.Name())
+	fmt.Println("Processing events through projection handler...")
+	fmt.Println()
+
+	// Simulate processing events through the projection
+	for _, pe := range persistedEvents {
+		if err := projection.Handle(nil, nil, &pe); err != nil {
+			log.Printf("Error handling event: %v", err)
+		}
+	}
+
+	fmt.Println()
+	fmt.Printf("Projection Statistics: %s\n", projection.Stats())
+	fmt.Println()
+
 	fmt.Println("✓ All examples completed successfully!")
+	fmt.Println()
+	fmt.Println("Key Takeaways:")
+	fmt.Println("  - Use FromESEvent() in projection handlers to convert individual events")
+	fmt.Println("  - FromESEvents() is useful for batch processing or loading aggregate state")
+	fmt.Println("  - Type-safe helpers (ToXxxVn/FromXxxVn) for specific event versions")
+	fmt.Println("  - Options pattern for metadata injection (trace/correlation/causation IDs)")
 	fmt.Println()
 	fmt.Println("Next steps:")
 	fmt.Println("  1. Modify domain events in domain/user/events/")

@@ -56,7 +56,7 @@ func (p *UserCountProjection) Name() string {
     return "user_count"
 }
 
-func (p *UserCountProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *UserCountProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     switch event.EventType {
     case "UserCreated":
         var payload UserCreated
@@ -220,7 +220,7 @@ type SafeProjection struct {
     count int64
 }
 
-func (p *SafeProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *SafeProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     atomic.AddInt64(&p.count, 1)  // Thread-safe
     return nil
 }
@@ -228,7 +228,7 @@ func (p *SafeProjection) Handle(ctx context.Context, tx es.DBTX, event *es.Persi
 // ✅ Good: Stateless (only updates database)
 type StatelessProjection struct{}
 
-func (p *StatelessProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *StatelessProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     _, err := tx.ExecContext(ctx, "INSERT INTO read_model ...")  // Database handles concurrency
     return err
 }
@@ -238,7 +238,7 @@ type UnsafeProjection struct {
     count int  // Race condition!
 }
 
-func (p *UnsafeProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *UnsafeProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     p.count++  // NOT thread-safe!
     return nil
 }
@@ -516,7 +516,7 @@ recentEvents, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &sn
 ### Error Handling
 
 ```go
-func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     // Transient errors: return error to retry
     if err := someOperation(); err != nil {
         return fmt.Errorf("transient error: %w", err)

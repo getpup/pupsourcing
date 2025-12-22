@@ -49,7 +49,8 @@ func (p *UserCounterProjection) Name() string {
 	return "user_counter"
 }
 
-func (p *UserCounterProjection) Handle(_ context.Context, _ es.DBTX, event *es.PersistedEvent) error {
+//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+func (p *UserCounterProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
 	if event.EventType == "UserCreated" {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
@@ -70,7 +71,8 @@ func (p *RevenueProjection) Name() string {
 	return "revenue_tracker"
 }
 
-func (p *RevenueProjection) Handle(_ context.Context, _ es.DBTX, event *es.PersistedEvent) error {
+//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+func (p *RevenueProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
 	if event.EventType == "OrderPlaced" {
 		var payload OrderPlaced
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
@@ -91,7 +93,8 @@ func (p *ActivityLogProjection) Name() string {
 	return "activity_log"
 }
 
-func (p *ActivityLogProjection) Handle(_ context.Context, _ es.DBTX, event *es.PersistedEvent) error {
+//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+func (p *ActivityLogProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
 	p.eventCount++
 	log.Printf("[Activity] Event #%d: %s (aggregate: %s)", p.eventCount, event.EventType, event.AggregateType)
 	return nil

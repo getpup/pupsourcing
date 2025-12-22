@@ -45,7 +45,8 @@ func (m *mockProjection) Name() string {
 	return m.name
 }
 
-func (m *mockProjection) Handle(_ context.Context, _ es.DBTX, event *es.PersistedEvent) error {
+//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+func (m *mockProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
 	if m.handleDelay > 0 {
 		time.Sleep(m.handleDelay)
 	}

@@ -44,7 +44,8 @@ func (p *WorkerPoolProjection) Name() string {
 	return "worker_pool_projection"
 }
 
-func (p *WorkerPoolProjection) Handle(_ context.Context, _ es.DBTX, event *es.PersistedEvent) error {
+//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+func (p *WorkerPoolProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
 	if event.EventType == "UserCreated" {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {

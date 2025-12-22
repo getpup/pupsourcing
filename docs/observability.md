@@ -271,7 +271,7 @@ type TracedProjection struct {
     tracer trace.Tracer
 }
 
-func (p *TracedProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *TracedProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     // Extract trace ID from event if present
     if event.TraceID.Valid {
         // Parse the trace ID string (assuming it's in hex format)

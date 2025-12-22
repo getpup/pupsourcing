@@ -47,7 +47,8 @@ func (p *ScalableProjection) Name() string {
 	return "scalable_projection"
 }
 
-func (p *ScalableProjection) Handle(_ context.Context, _ es.DBTX, event *es.PersistedEvent) error {
+//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+func (p *ScalableProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
 	if event.EventType == "UserCreated" {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {

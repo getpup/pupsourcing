@@ -239,7 +239,7 @@ type Projection interface {
     Name() string
     
     // Process a single event
-    Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error
+    Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error
 }
 ```
 
@@ -357,7 +357,7 @@ Projections must be idempotent because events may be reprocessed during crash re
 
 **Non-idempotent (problematic):**
 ```go
-func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     if event.EventType != "OrderPlaced" {
         return nil
     }
@@ -371,7 +371,7 @@ func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.Persisted
 
 **Idempotent approach 1: Track processed events explicitly**
 ```go
-func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     if event.EventType != "OrderPlaced" {
         return nil
     }
@@ -405,7 +405,7 @@ func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.Persisted
 
 **Idempotent approach 2: Use upsert semantics**
 ```go
-func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     if event.EventType != "UserCreated" {
         return nil
     }
@@ -432,7 +432,7 @@ func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.Persisted
 
 **Idempotent approach 3: Use event position as version**
 ```go
-func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     if event.EventType != "InventoryAdjusted" {
         return nil
     }
@@ -603,7 +603,7 @@ tx.Commit()
 Handle different event versions:
 
 ```go
-func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     switch event.EventType {
     case "UserCreated":
         switch event.EventVersion {
@@ -678,7 +678,7 @@ type OrderSagaProjection struct {
     db    *sql.DB
 }
 
-func (p *OrderSagaProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *OrderSagaProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     switch event.EventType {
     case "OrderPlaced":
         // Reserve inventory

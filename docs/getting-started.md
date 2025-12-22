@@ -175,7 +175,7 @@ func (p *UserCountProjection) Name() string {
     return "user_count"
 }
 
-func (p *UserCountProjection) Handle(_ context.Context, _ es.DBTX, event *es.PersistedEvent) error {
+func (p *UserCountProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
     if event.EventType == "UserCreated" {
         p.count++
         fmt.Printf("User count: %d\n", p.count)

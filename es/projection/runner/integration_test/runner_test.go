@@ -175,7 +175,8 @@ func (p *countingProjection) Name() string {
 	return p.name
 }
 
-func (p *countingProjection) Handle(_ context.Context, _ es.DBTX, _ *es.PersistedEvent) error {
+//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+func (p *countingProjection) Handle(_ context.Context, _ es.DBTX, _ es.PersistedEvent) error {
 	atomic.AddInt64(&p.count, 1)
 	return nil
 }
@@ -329,7 +330,8 @@ func (p *failingProjection) Name() string {
 	return p.name
 }
 
-func (p *failingProjection) Handle(_ context.Context, _ es.DBTX, _ *es.PersistedEvent) error {
+//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+func (p *failingProjection) Handle(_ context.Context, _ es.DBTX, _ es.PersistedEvent) error {
 	count := atomic.AddInt64(&p.count, 1)
 	if !p.shouldResume && count > p.failAfter {
 		return errors.New("intentional failure")

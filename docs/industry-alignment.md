@@ -166,7 +166,7 @@ func (p *MyProjection) Name() string {
     return "my-processor"
 }
 
-func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     if event.EventType == "UserCreated" {
         // Handle event
     }
@@ -222,7 +222,7 @@ public class UserProjection : MultiStreamProjection<UserReadModel, Guid>
 }
 
 // pupsourcing projection
-func (p *UserProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *UserProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     if event.EventType == "UserCreated" {
         // Update read model
     }

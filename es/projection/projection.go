@@ -25,8 +25,11 @@ type Projection interface {
 
 	// Handle processes a single event.
 	// Return an error to stop projection processing.
-	// Event is passed by pointer to avoid copying large structs.
-	Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error
+	// Event is passed by value to enforce immutability (events are value objects).
+	// The underlying data (Payload, Metadata) is not copied, only the struct references.
+	//
+	//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+	Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error
 }
 
 // PartitionStrategy defines how events are partitioned across projection instances.
@@ -198,7 +201,7 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 	var processedCount int
 	var skippedCount int
 	for i := range events {
-		event := &events[i]
+		event := events[i]
 		// Apply partition filter
 		if !p.config.PartitionStrategy.ShouldProcess(
 			event.AggregateID,

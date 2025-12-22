@@ -399,11 +399,13 @@ import (
 
 // Repository implements the domain repository interface using event sourcing.
 type Repository struct {
+    db    *sql.DB
     store es.EventStore
 }
 
 func NewRepository(db *sql.DB) *Repository {
     return &Repository{
+        db:    db,
         store: postgres.NewStore(postgres.DefaultStoreConfig()),
     }
 }
@@ -424,8 +426,12 @@ func (r *Repository) Save(ctx context.Context, u *user.User) error {
     }
     defer tx.Rollback()
     
-    // Append to event store
-    _, err = r.store.Append(ctx, tx, esEvents)
+    // Get expected version from aggregate
+    // Assume user aggregate tracks its version
+    expectedVersion := u.Version()
+    
+    // Append to event store with optimistic concurrency
+    _, err = r.store.Append(ctx, tx, es.Exact(expectedVersion), esEvents)
     if err != nil {
         return err
     }

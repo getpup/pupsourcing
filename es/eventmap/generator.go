@@ -496,7 +496,7 @@ func FromESEvents[T any](events []es.PersistedEvent) ([]T, error) {
 	result := make([]T, 0, len(events))
 
 	for i, pe := range events {
-		domainEvent, err := fromESEvent(pe)
+		domainEvent, err := FromESEvent(pe)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert event at index %d: %w", i, err)
 		}
@@ -513,8 +513,9 @@ func FromESEvents[T any](events []es.PersistedEvent) ([]T, error) {
 	return result, nil
 }
 
-// fromESEvent converts a single persisted event to a domain event.
-func fromESEvent(pe es.PersistedEvent) (any, error) {
+// FromESEvent converts a single persisted event to a domain event.
+// This is useful for projection handlers that need to convert individual events.
+func FromESEvent(pe es.PersistedEvent) (any, error) {
 	switch pe.EventType {
 `)
 

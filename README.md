@@ -132,7 +132,7 @@ func (p *MyProjection) Name() string {
     return "my_projection"
 }
 
-func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     // Update read model based on event
     return nil
 }

@@ -324,7 +324,7 @@ if *partitionKey == -1 {
 
 Make projections safe for reprocessing:
 ```go
-func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     _, err := tx.ExecContext(ctx,
         "INSERT INTO read_model (id, data) VALUES ($1, $2)"+
         "ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",

@@ -555,7 +555,7 @@ type InstrumentedProjection struct {
     inner projection.Projection
 }
 
-func (p *InstrumentedProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *InstrumentedProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     err := p.inner.Handle(ctx, tx, event)
     if err != nil {
         projectionErrors.WithLabelValues(p.inner.Name()).Inc()

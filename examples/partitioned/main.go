@@ -49,7 +49,8 @@ func (p *PartitionedProjection) Name() string {
 	return "partitioned_user_counter"
 }
 
-func (p *PartitionedProjection) Handle(_ context.Context, _ es.DBTX, event *es.PersistedEvent) error {
+//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+func (p *PartitionedProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
 	if event.EventType == "UserCreated" {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {

@@ -67,7 +67,8 @@ func (p *UserProjection) Name() string {
 	return "user_list_with_logging"
 }
 
-func (p *UserProjection) Handle(_ context.Context, _ es.DBTX, event *es.PersistedEvent) error {
+//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+func (p *UserProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
 	if event.EventType == "UserCreated" {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {

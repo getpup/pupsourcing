@@ -332,7 +332,7 @@ Interface for event projection handlers.
 ```go
 type Projection interface {
     Name() string
-    Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error
+    Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error
 }
 ```
 
@@ -351,7 +351,7 @@ func (p *MyProjection) Name() string {
 Processes a single event.
 
 ```go
-func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event *es.PersistedEvent) error {
+func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
     // Process event
     return nil
 }

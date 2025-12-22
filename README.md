@@ -17,6 +17,7 @@ pupsourcing provides minimal, reliable infrastructure for event sourcing in Go a
 - **Optimistic Concurrency** - Automatic conflict detection via database constraints
 - **Projection System** - Pull-based event processing with checkpoints
 - **Horizontal Scaling** - Hash-based partitioning for projection workers
+- **Code Generation** - Optional tool for strongly-typed domain event mapping
 - **Minimal Dependencies** - Go standard library plus database driver
 
 ## Installation
@@ -36,16 +37,6 @@ go get modernc.org/sqlite
 # MySQL/MariaDB
 go get github.com/go-sql-driver/mysql
 ```
-
-## Features at a Glance
-
-- **Clean Architecture** - Core interfaces are datastore-agnostic; no "infrastructure creep" into your domain model
-- **Multiple Database Adapters** - PostgreSQL, SQLite, and MySQL/MariaDB
-- **Optimistic Concurrency** - Automatic conflict detection via database constraints
-- **Projection System** - Pull-based event processing with checkpoints
-- **Horizontal Scaling** - Hash-based partitioning for projection workers
-- **Code Generation** - Optional tool for strongly-typed domain event mapping
-- **Minimal Dependencies** - Go standard library plus database driver
 
 ## Quick Start
 

@@ -44,7 +44,13 @@ E-commerce system example:
 
 ## Basic Implementation
 
-### Implementing a Projection
+### Projection Types
+
+There are two types of projections:
+
+#### Scoped Projections (Recommended for Read Models)
+
+Scoped projections filter events by aggregate type, receiving only the events they care about. This is more efficient and clearer in intent.
 
 ```go
 type UserCountProjection struct {
@@ -52,11 +58,16 @@ type UserCountProjection struct {
 }
 
 func (p *UserCountProjection) Name() string {
-    // Unique name for checkpoint tracking
     return "user_count"
 }
 
+// AggregateTypes filters events - only User events delivered to Handle()
+func (p *UserCountProjection) AggregateTypes() []string {
+    return []string{"User"}
+}
+
 func (p *UserCountProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+    // Only User events arrive here - no need to check EventType for other aggregates
     switch event.EventType {
     case "UserCreated":
         var payload UserCreated
@@ -82,14 +93,52 @@ func (p *UserCountProjection) Handle(ctx context.Context, tx es.DBTX, event es.P
 }
 ```
 
+**When to use:**
+- Read models for specific aggregates
+- Domain-specific denormalizations
+- Search indexes for entity types
+
+#### Global Projections (For Integration/Outbox)
+
+Global projections receive ALL events. Use for integration publishers, audit logs, or cross-aggregate analytics.
+
+```go
+type WatermillPublisher struct {
+    publisher message.Publisher
+}
+
+func (p *WatermillPublisher) Name() string {
+    return "system.integration.watermill.v1"
+}
+
+// No AggregateTypes() method - receives ALL events
+
+func (p *WatermillPublisher) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+    // Receives all events regardless of aggregate type
+    msg := message.NewMessage(event.EventID.String(), event.Payload)
+    msg.Metadata.Set("aggregate_type", event.AggregateType)
+    msg.Metadata.Set("event_type", event.EventType)
+    
+    return p.publisher.Publish(event.EventType, msg)
+}
+```
+
+**When to use:**
+- Message broker integrations (Watermill, Kafka, RabbitMQ)
+- Outbox pattern implementations
+- Complete audit trails
+- Cross-aggregate analytics
+
 ### Running a Projection
+
+Both scoped and global projections run the same way:
 
 ```go
 import (
     "github.com/getpup/pupsourcing/es/projection"
 )
 
-proj := &UserCountProjection{db: db}
+proj := &UserCountProjection{db: db}  // or &WatermillPublisher{...}
 config := projection.DefaultProcessorConfig()
 processor := projection.NewProcessor(db, store, &config)
 

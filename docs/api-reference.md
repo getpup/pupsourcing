@@ -325,14 +325,109 @@ if stream.IsEmpty() {
 
 ## Projections
 
+Projections transform events into query-optimized read models. There are two types:
+
+1. **Scoped Projections** - Filter events by aggregate type (for read models)
+2. **Global Projections** - Receive all events (for integration publishers, audit logs)
+
+### projection.ScopedProjection
+
+Optional interface for projections that only need specific aggregate types.
+
+```go
+type ScopedProjection interface {
+    Projection
+    AggregateTypes() []string
+}
+```
+
+#### When to Use
+
+**Use ScopedProjection for:**
+- Read models for specific aggregates (e.g., user profile view)
+- Domain-specific denormalizations (e.g., order summary)
+- Search indexes for specific entity types
+
+**Use Projection (global) for:**
+- Message broker integrations (Watermill, Kafka, RabbitMQ)
+- Outbox pattern implementations
+- Complete audit trails
+- Cross-aggregate analytics
+
+#### AggregateTypes
+
+Returns the list of aggregate types this projection processes.
+
+```go
+func (p *UserReadModelProjection) AggregateTypes() []string {
+    return []string{"User"}  // Only receives User events
+}
+
+func (p *OrderUserProjection) AggregateTypes() []string {
+    return []string{"User", "Order"}  // Receives User and Order events
+}
+```
+
+**Behavior:**
+- If list is non-empty, only events matching these aggregate types are delivered to `Handle()`
+- If list is empty, projection receives all events (same as global projection)
+- Filtering happens at processor level, not in handler (O(1) map lookup)
+
+#### Example: Scoped Read Model
+
+```go
+type UserReadModelProjection struct {
+    db *sql.DB
+}
+
+func (p *UserReadModelProjection) Name() string {
+    return "user_read_model"
+}
+
+func (p *UserReadModelProjection) AggregateTypes() []string {
+    return []string{"User"}
+}
+
+func (p *UserReadModelProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+    // Only User events arrive here
+    switch event.EventType {
+    case "UserCreated":
+        // Update read model
+    case "UserUpdated":
+        // Update read model
+    }
+    return nil
+}
+```
+
 ### projection.Projection
 
-Interface for event projection handlers.
+Interface for event projection handlers. Implement this interface for global projections that need all events.
 
 ```go
 type Projection interface {
     Name() string
     Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error
+}
+```
+
+#### Example: Global Integration Publisher
+
+```go
+type WatermillPublisher struct {
+    publisher message.Publisher
+}
+
+func (p *WatermillPublisher) Name() string {
+    return "system.integration.watermill.v1"
+}
+
+// No AggregateTypes() method - receives ALL events
+
+func (p *WatermillPublisher) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+    // Receives all events - publish to message broker
+    msg := message.NewMessage(event.EventID.String(), event.Payload)
+    return p.publisher.Publish(event.EventType, msg)
 }
 ```
 

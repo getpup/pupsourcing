@@ -233,12 +233,20 @@ type EventStore interface {
 
 Projections transform events into read models (materialized views), enabling flexible query patterns and eventual consistency.
 
+**Two types of projections:**
+
+1. **Scoped Projections** - Filter by aggregate type (for read models):
+```go
+type ScopedProjection interface {
+    Projection
+    AggregateTypes() []string  // Returns aggregate types to process
+}
+```
+
+2. **Global Projections** - Receive all events (for integration/audit):
 ```go
 type Projection interface {
-    // Unique name for checkpoint tracking
     Name() string
-    
-    // Process a single event
     Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error
 }
 ```
@@ -246,10 +254,11 @@ type Projection interface {
 **Projection lifecycle:**
 1. Read batch of events from store starting from checkpoint
 2. Apply partition filter (for horizontal scaling)
-3. Call Handle() for each event within a transaction
-4. Update checkpoint atomically
-5. Commit transaction
-6. Repeat until context is cancelled or error occurs
+3. Apply aggregate type filter (for scoped projections)
+4. Call Handle() for each event within a transaction
+5. Update checkpoint atomically
+6. Commit transaction
+7. Repeat until context is cancelled or error occurs
 
 ### 5. Checkpoints
 

@@ -149,8 +149,8 @@ func main() {
 	defer db.Close()
 
 	if err = db.Ping(); err != nil {
-		//nolint:gocritic // it's just an example code
-		log.Fatalf("Failed to ping database: %v", err)
+		log.Printf("Failed to ping database: %v", err)
+		return
 	}
 
 	ctx := context.Background()
@@ -231,8 +231,8 @@ func main() {
 
 	err = runner.RunMultipleProjections(ctx, db, store, configs)
 	if err != nil && !errors.Is(err, context.Canceled) {
-		//nolint:gocritic // it's just an example code
-		log.Fatalf("Runner error: %v", err)
+		log.Printf("Runner error: %v", err)
+		return
 	}
 
 	log.Println("\nAll projections stopped.")

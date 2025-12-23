@@ -52,5 +52,5 @@ examples/*/single-worker
 examples/*/stop-resume
 examples/*/with-logging
 examples/*/worker-pool
-examples/*/scoped-projections
+examples/scoped-projections/scoped-projections
 eventmap-gen

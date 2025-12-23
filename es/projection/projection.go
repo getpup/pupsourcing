@@ -180,6 +180,9 @@ func (p *Processor) Run(ctx context.Context, projection Projection) error {
 			"batch_size", p.config.BatchSize)
 	}
 
+	// Build aggregate type filter once for the projection (not per batch)
+	aggregateTypeFilter := buildAggregateTypeFilter(projection)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -193,7 +196,7 @@ func (p *Processor) Run(ctx context.Context, projection Projection) error {
 		}
 
 		// Process batch in transaction
-		err := p.processBatch(ctx, projection)
+		err := p.processBatch(ctx, projection, aggregateTypeFilter)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) || err.Error() == "no events in batch" {
 				// No events available, continue polling
@@ -250,7 +253,7 @@ func (p *Processor) shouldProcessEvent(event es.PersistedEvent, aggregateTypeFil
 	return true
 }
 
-func (p *Processor) processBatch(ctx context.Context, projection Projection) error {
+func (p *Processor) processBatch(ctx context.Context, projection Projection, aggregateTypeFilter map[string]bool) error {
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -282,9 +285,6 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 	if len(events) == 0 {
 		return errors.New("no events in batch")
 	}
-
-	// Check if projection implements ScopedProjection for aggregate type filtering
-	aggregateTypeFilter := buildAggregateTypeFilter(projection)
 
 	// Process events with partition filter and aggregate type filter
 	// Note: Events are passed by value to projection handlers to enforce immutability.

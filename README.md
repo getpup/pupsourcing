@@ -122,25 +122,32 @@ for _, event := range stream.Events {
 
 ### 5. Run Projections
 
+Projections transform events into query-optimized read models. Use **scoped projections** for read models that only care about specific aggregate types, or **global projections** for integration publishers that need all events.
+
 ```go
 import "github.com/getpup/pupsourcing/es/projection"
 
-// Implement Projection interface
-type MyProjection struct{}
+// Scoped projection - only receives User aggregate events
+type UserReadModelProjection struct{}
 
-func (p *MyProjection) Name() string {
-    return "my_projection"
+func (p *UserReadModelProjection) Name() string {
+    return "user_read_model"
 }
 
-func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
-    // Update read model based on event
+// AggregateTypes filters events by aggregate type
+func (p *UserReadModelProjection) AggregateTypes() []string {
+    return []string{"User"}  // Only receives User events
+}
+
+func (p *UserReadModelProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+    // Update read model based on User events only
     return nil
 }
 
 // Run projection
 config := projection.DefaultProcessorConfig()
 processor := projection.NewProcessor(db, store, &config)
-err := processor.Run(ctx, &MyProjection{})
+err := processor.Run(ctx, &UserReadModelProjection{})
 ```
 
 ## Documentation

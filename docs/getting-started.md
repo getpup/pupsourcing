@@ -162,6 +162,8 @@ for _, event := range stream.Events {
 
 ### 7. Create a Projection
 
+Create a scoped projection that only receives User events:
+
 ```go
 import (
     "github.com/getpup/pupsourcing/es/projection"
@@ -173,6 +175,11 @@ type UserCountProjection struct {
 
 func (p *UserCountProjection) Name() string {
     return "user_count"
+}
+
+// AggregateTypes makes this a scoped projection
+func (p *UserCountProjection) AggregateTypes() []string {
+    return []string{"User"}  // Only receives User events
 }
 
 func (p *UserCountProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {

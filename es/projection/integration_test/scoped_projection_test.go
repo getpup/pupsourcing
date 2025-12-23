@@ -10,7 +10,6 @@ package integration_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -91,6 +90,7 @@ func TestScopedProjection_GlobalReceivesAllEvents(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Append events from different aggregate types
+	// Each event must be appended separately since they belong to different aggregates
 	events := []es.Event{
 		{
 			AggregateType: "User",
@@ -124,12 +124,15 @@ func TestScopedProjection_GlobalReceivesAllEvents(t *testing.T) {
 		},
 	}
 
-	tx, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx, es.Any(), events)
-	if err != nil {
-		t.Fatalf("Failed to append events: %v", err)
+	// Append each event separately since they belong to different aggregates
+	for _, event := range events {
+		tx, _ := db.BeginTx(ctx, nil)
+		_, err := store.Append(ctx, tx, es.NoStream(), []es.Event{event})
+		if err != nil {
+			t.Fatalf("Failed to append event: %v", err)
+		}
+		tx.Commit()
 	}
-	tx.Commit()
 
 	// Create global projection
 	globalProj := &globalProjection{name: "global_test"}
@@ -140,7 +143,7 @@ func TestScopedProjection_GlobalReceivesAllEvents(t *testing.T) {
 	ctx2, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 
-	err = processor.Run(ctx2, globalProj)
+	err := processor.Run(ctx2, globalProj)
 	// Accept context deadline or cancellation
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
 		t.Fatalf("Unexpected error: %v", err)
@@ -176,6 +179,7 @@ func TestScopedProjection_OnlyReceivesMatchingAggregates(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Append events from different aggregate types
+	// Each event must be appended separately since they belong to different aggregates
 	events := []es.Event{
 		{
 			AggregateType: "User",
@@ -219,12 +223,15 @@ func TestScopedProjection_OnlyReceivesMatchingAggregates(t *testing.T) {
 		},
 	}
 
-	tx, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx, es.Any(), events)
-	if err != nil {
-		t.Fatalf("Failed to append events: %v", err)
+	// Append each event separately since they belong to different aggregates
+	for _, event := range events {
+		tx, _ := db.BeginTx(ctx, nil)
+		_, err := store.Append(ctx, tx, es.NoStream(), []es.Event{event})
+		if err != nil {
+			t.Fatalf("Failed to append event: %v", err)
+		}
+		tx.Commit()
 	}
-	tx.Commit()
 
 	// Create scoped projection that only cares about User events
 	scopedProj := &scopedProjection{
@@ -238,7 +245,7 @@ func TestScopedProjection_OnlyReceivesMatchingAggregates(t *testing.T) {
 	ctx2, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 
-	err = processor.Run(ctx2, scopedProj)
+	err := processor.Run(ctx2, scopedProj)
 	// Accept context deadline or cancellation
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
 		t.Fatalf("Unexpected error: %v", err)
@@ -268,6 +275,7 @@ func TestScopedProjection_MultipleAggregateTypes(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Append events from different aggregate types
+	// Each event must be appended separately since they belong to different aggregates
 	events := []es.Event{
 		{
 			AggregateType: "User",
@@ -311,12 +319,15 @@ func TestScopedProjection_MultipleAggregateTypes(t *testing.T) {
 		},
 	}
 
-	tx, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx, es.Any(), events)
-	if err != nil {
-		t.Fatalf("Failed to append events: %v", err)
+	// Append each event separately since they belong to different aggregates
+	for _, event := range events {
+		tx, _ := db.BeginTx(ctx, nil)
+		_, err := store.Append(ctx, tx, es.NoStream(), []es.Event{event})
+		if err != nil {
+			t.Fatalf("Failed to append event: %v", err)
+		}
+		tx.Commit()
 	}
-	tx.Commit()
 
 	// Create scoped projection that cares about User and Order events
 	scopedProj := &scopedProjection{
@@ -330,7 +341,7 @@ func TestScopedProjection_MultipleAggregateTypes(t *testing.T) {
 	ctx2, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 
-	err = processor.Run(ctx2, scopedProj)
+	err := processor.Run(ctx2, scopedProj)
 	// Accept context deadline or cancellation
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
 		t.Fatalf("Unexpected error: %v", err)
@@ -360,6 +371,7 @@ func TestScopedProjection_EmptyAggregateTypesReceivesAll(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Append events from different aggregate types
+	// Each event must be appended separately since they belong to different aggregates
 	events := []es.Event{
 		{
 			AggregateType: "User",
@@ -383,12 +395,15 @@ func TestScopedProjection_EmptyAggregateTypesReceivesAll(t *testing.T) {
 		},
 	}
 
-	tx, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx, es.Any(), events)
-	if err != nil {
-		t.Fatalf("Failed to append events: %v", err)
+	// Append each event separately since they belong to different aggregates
+	for _, event := range events {
+		tx, _ := db.BeginTx(ctx, nil)
+		_, err := store.Append(ctx, tx, es.NoStream(), []es.Event{event})
+		if err != nil {
+			t.Fatalf("Failed to append event: %v", err)
+		}
+		tx.Commit()
 	}
-	tx.Commit()
 
 	// Create scoped projection with empty aggregate types list
 	scopedProj := &scopedProjection{
@@ -402,7 +417,7 @@ func TestScopedProjection_EmptyAggregateTypesReceivesAll(t *testing.T) {
 	ctx2, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 
-	err = processor.Run(ctx2, scopedProj)
+	err := processor.Run(ctx2, scopedProj)
 	// Accept context deadline or cancellation
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
 		t.Fatalf("Unexpected error: %v", err)
@@ -425,6 +440,7 @@ func TestScopedProjection_MixedProjectionsWorkCorrectly(t *testing.T) {
 	store := postgres.NewStore(postgres.DefaultStoreConfig())
 
 	// Append events from different aggregate types
+	// Each event must be appended separately since they belong to different aggregates
 	events := []es.Event{
 		{
 			AggregateType: "User",
@@ -458,12 +474,15 @@ func TestScopedProjection_MixedProjectionsWorkCorrectly(t *testing.T) {
 		},
 	}
 
-	tx, _ := db.BeginTx(ctx, nil)
-	_, err := store.Append(ctx, tx, es.Any(), events)
-	if err != nil {
-		t.Fatalf("Failed to append events: %v", err)
+	// Append each event separately since they belong to different aggregates
+	for _, event := range events {
+		tx, _ := db.BeginTx(ctx, nil)
+		_, err := store.Append(ctx, tx, es.NoStream(), []es.Event{event})
+		if err != nil {
+			t.Fatalf("Failed to append event: %v", err)
+		}
+		tx.Commit()
 	}
-	tx.Commit()
 
 	// Create both global and scoped projections
 	globalProj := &globalProjection{name: "mixed_global_test"}
@@ -479,7 +498,7 @@ func TestScopedProjection_MixedProjectionsWorkCorrectly(t *testing.T) {
 	ctx1, cancel1 := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel1()
 
-	err = processor1.Run(ctx1, globalProj)
+	err := processor1.Run(ctx1, globalProj)
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
 		t.Fatalf("Unexpected error from global projection: %v", err)
 	}

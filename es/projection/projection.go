@@ -33,6 +33,51 @@ type Projection interface {
 	Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error
 }
 
+// ScopedProjection is an optional interface that projections can implement to filter
+// events by aggregate type. This is useful for read model projections that only care
+// about specific aggregate types.
+//
+// By default, projections implementing only the Projection interface receive all events.
+// This ensures that global projections (e.g., integration publishers, audit logs) continue
+// to work without modification.
+//
+// Example - Read model projection:
+//
+//	type UserReadModelProjection struct {}
+//
+//	func (p *UserReadModelProjection) Name() string {
+//	    return "user_read_model"
+//	}
+//
+//	func (p *UserReadModelProjection) AggregateTypes() []string {
+//	    return []string{"User"}
+//	}
+//
+//	func (p *UserReadModelProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+//	    // Only receives User aggregate events
+//	    return nil
+//	}
+//
+// Example - Global integration publisher:
+//
+//	type WatermillPublisher struct {}
+//
+//	func (p *WatermillPublisher) Name() string {
+//	    return "system.integration.watermill.v1"
+//	}
+//
+//	func (p *WatermillPublisher) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+//	    // Receives ALL events for publishing to message broker
+//	    return nil
+//	}
+type ScopedProjection interface {
+	Projection
+	// AggregateTypes returns the list of aggregate types this projection cares about.
+	// If empty, the projection receives all events (same as not implementing ScopedProjection).
+	// If non-empty, only events matching one of these aggregate types are passed to Handle.
+	AggregateTypes() []string
+}
+
 // PartitionStrategy defines how events are partitioned across projection instances.
 type PartitionStrategy interface {
 	// ShouldProcess returns true if this projection instance should process the given event.
@@ -164,6 +209,47 @@ func (p *Processor) Run(ctx context.Context, projection Projection) error {
 	}
 }
 
+// buildAggregateTypeFilter builds a filter map for scoped projections.
+// Returns nil if the projection is not scoped or has an empty aggregate types list.
+func buildAggregateTypeFilter(projection Projection) map[string]bool {
+	scopedProj, ok := projection.(ScopedProjection)
+	if !ok {
+		return nil
+	}
+
+	types := scopedProj.AggregateTypes()
+	if len(types) == 0 {
+		return nil
+	}
+
+	filter := make(map[string]bool, len(types))
+	for _, aggType := range types {
+		filter[aggType] = true
+	}
+	return filter
+}
+
+// shouldProcessEvent checks if an event should be processed based on partition and aggregate type filters.
+//
+//nolint:gocritic // hugeParam: Intentionally pass by value to match event processing pattern
+func (p *Processor) shouldProcessEvent(event es.PersistedEvent, aggregateTypeFilter map[string]bool) bool {
+	// Apply partition filter
+	if !p.config.PartitionStrategy.ShouldProcess(
+		event.AggregateID,
+		p.config.PartitionKey,
+		p.config.TotalPartitions,
+	) {
+		return false
+	}
+
+	// Apply aggregate type filter if projection is scoped
+	if aggregateTypeFilter != nil && !aggregateTypeFilter[event.AggregateType] {
+		return false
+	}
+
+	return true
+}
+
 func (p *Processor) processBatch(ctx context.Context, projection Projection) error {
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -197,7 +283,10 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 		return errors.New("no events in batch")
 	}
 
-	// Process events with partition filter
+	// Check if projection implements ScopedProjection for aggregate type filtering
+	aggregateTypeFilter := buildAggregateTypeFilter(projection)
+
+	// Process events with partition filter and aggregate type filter
 	// Note: Events are passed by value to projection handlers to enforce immutability.
 	// This creates a 232-byte copy per event, but large data (Payload, Metadata) is not deep-copied
 	// since slices share references to their backing arrays. The immutability guarantee
@@ -207,12 +296,9 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection) err
 	var skippedCount int
 	for i := range events {
 		event := events[i]
-		// Apply partition filter
-		if !p.config.PartitionStrategy.ShouldProcess(
-			event.AggregateID,
-			p.config.PartitionKey,
-			p.config.TotalPartitions,
-		) {
+
+		// Check if event should be processed
+		if !p.shouldProcessEvent(event, aggregateTypeFilter) {
 			lastPosition = event.GlobalPosition
 			skippedCount++
 			continue

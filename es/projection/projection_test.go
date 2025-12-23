@@ -1,10 +1,90 @@
 package projection
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/getpup/pupsourcing/es"
 )
+
+// mockGlobalProjection is a projection that receives all events
+type mockGlobalProjection struct {
+	name           string
+	receivedEvents []es.PersistedEvent
+}
+
+func (p *mockGlobalProjection) Name() string {
+	return p.name
+}
+
+//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+func (p *mockGlobalProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
+	p.receivedEvents = append(p.receivedEvents, event)
+	return nil
+}
+
+// mockScopedProjection is a projection that only receives specific aggregate types
+type mockScopedProjection struct {
+	name           string
+	aggregateTypes []string
+	receivedEvents []es.PersistedEvent
+}
+
+func (p *mockScopedProjection) Name() string {
+	return p.name
+}
+
+func (p *mockScopedProjection) AggregateTypes() []string {
+	return p.aggregateTypes
+}
+
+//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+func (p *mockScopedProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
+	p.receivedEvents = append(p.receivedEvents, event)
+	return nil
+}
+
+func TestScopedProjection_Interface(_ *testing.T) {
+	// Test that mockScopedProjection implements both interfaces
+	var _ Projection = &mockScopedProjection{}
+	var _ ScopedProjection = &mockScopedProjection{}
+
+	// Test that mockGlobalProjection implements only Projection
+	var _ Projection = &mockGlobalProjection{}
+}
+
+func TestScopedProjection_TypeAssertion(t *testing.T) {
+	globalProj := &mockGlobalProjection{name: "global"}
+	scopedProj := &mockScopedProjection{name: "scoped", aggregateTypes: []string{"User"}}
+
+	// Global projection should not be a ScopedProjection
+	if _, ok := Projection(globalProj).(ScopedProjection); ok {
+		t.Error("Global projection should not implement ScopedProjection")
+	}
+
+	// Scoped projection should be a ScopedProjection
+	if _, ok := Projection(scopedProj).(ScopedProjection); !ok {
+		t.Error("Scoped projection should implement ScopedProjection")
+	}
+}
+
+func TestScopedProjection_EmptyAggregateTypes(t *testing.T) {
+	// Test that empty aggregate types list is valid
+	scopedProj := &mockScopedProjection{
+		name:           "scoped_empty",
+		aggregateTypes: []string{},
+	}
+
+	types := scopedProj.AggregateTypes()
+	if types == nil {
+		t.Error("AggregateTypes should not return nil")
+	}
+	if len(types) != 0 {
+		t.Errorf("Expected empty slice, got %v", types)
+	}
+}
 
 func TestHashPartitionStrategy_SinglePartition(t *testing.T) {
 	strategy := HashPartitionStrategy{}

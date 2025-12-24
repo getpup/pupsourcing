@@ -50,7 +50,7 @@ func (p *PartitionedProjection) Name() string {
 }
 
 //nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
-func (p *PartitionedProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
+func (p *PartitionedProjection) Handle(_ context.Context, event es.PersistedEvent) error {
 	if event.EventType == "UserCreated" {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
@@ -125,7 +125,7 @@ func main() {
 	config.PartitionKey = *partitionKey
 	config.TotalPartitions = *totalPartitions
 
-	processor := projection.NewProcessor(db, store, store, &config)
+	processor := postgres.NewProcessor(db, store, &config)
 
 	// Set up graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)

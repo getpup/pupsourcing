@@ -2,35 +2,33 @@
 package projection
 
 import (
-	"context"
-	"database/sql"
-	"errors"
-	"fmt"
-	"hash/fnv"
+"context"
+"hash/fnv"
 
-	"github.com/getpup/pupsourcing/es"
-	"github.com/getpup/pupsourcing/es/store"
-)
-
-var (
-	// ErrProjectionStopped indicates the projection was stopped due to an error.
-	ErrProjectionStopped = errors.New("projection stopped")
+"github.com/getpup/pupsourcing/es"
 )
 
 // Projection defines the interface for event projection handlers.
+// Projections are storage-agnostic and can write to any destination
+// (SQL databases, NoSQL stores, message brokers, search engines, etc.).
 type Projection interface {
-	// Name returns the unique name of this projection.
-	// This name is used for checkpoint tracking.
-	Name() string
+// Name returns the unique name of this projection.
+// This name is used for checkpoint tracking.
+Name() string
 
-	// Handle processes a single event.
-	// Return an error to stop projection processing.
-	// Event is passed by value to enforce immutability (events are value objects).
-	// Large data (Payload, Metadata byte slices) share references to their backing arrays,
-	// so the actual payload/metadata data is not deep-copied.
-	//
-	//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
-	Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error
+// Handle processes a single event.
+// Return an error to stop projection processing.
+//
+// Projections are responsible for managing their own persistence.
+// For SQL projections, they should manage their own database connections/transactions.
+// For non-SQL projections (Elasticsearch, Redis, message brokers), they use appropriate clients.
+//
+// Event is passed by value to enforce immutability (events are value objects).
+// Large data (Payload, Metadata byte slices) share references to their backing arrays,
+// so the actual payload/metadata data is not deep-copied.
+//
+//nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
+Handle(ctx context.Context, event es.PersistedEvent) error
 }
 
 // ScopedProjection is an optional interface that projections can implement to filter
@@ -43,48 +41,48 @@ type Projection interface {
 //
 // Example - Read model projection:
 //
-//	type UserReadModelProjection struct {}
+//type UserReadModelProjection struct {}
 //
-//	func (p *UserReadModelProjection) Name() string {
-//	    return "user_read_model"
-//	}
+//func (p *UserReadModelProjection) Name() string {
+//    return "user_read_model"
+//}
 //
-//	func (p *UserReadModelProjection) AggregateTypes() []string {
-//	    return []string{"User"}
-//	}
+//func (p *UserReadModelProjection) AggregateTypes() []string {
+//    return []string{"User"}
+//}
 //
-//	func (p *UserReadModelProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
-//	    // Only receives User aggregate events
-//	    return nil
-//	}
+//func (p *UserReadModelProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
+//    // Only receives User aggregate events
+//    return nil
+//}
 //
 // Example - Global integration publisher:
 //
-//	type WatermillPublisher struct {}
+//type WatermillPublisher struct {}
 //
-//	func (p *WatermillPublisher) Name() string {
-//	    return "system.integration.watermill.v1"
-//	}
+//func (p *WatermillPublisher) Name() string {
+//    return "system.integration.watermill.v1"
+//}
 //
-//	func (p *WatermillPublisher) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
-//	    // Receives ALL events for publishing to message broker
-//	    return nil
-//	}
+//func (p *WatermillPublisher) Handle(ctx context.Context, event es.PersistedEvent) error {
+//    // Receives ALL events for publishing to message broker
+//    return nil
+//}
 type ScopedProjection interface {
-	Projection
-	// AggregateTypes returns the list of aggregate types this projection cares about.
-	// If empty, the projection receives all events (same as not implementing ScopedProjection).
-	// If non-empty, only events matching one of these aggregate types are passed to Handle.
-	AggregateTypes() []string
+Projection
+// AggregateTypes returns the list of aggregate types this projection cares about.
+// If empty, the projection receives all events (same as not implementing ScopedProjection).
+// If non-empty, only events matching one of these aggregate types are passed to Handle.
+AggregateTypes() []string
 }
 
 // PartitionStrategy defines how events are partitioned across projection instances.
 type PartitionStrategy interface {
-	// ShouldProcess returns true if this projection instance should process the given event.
-	// aggregateID is the aggregate ID of the event.
-	// partitionKey identifies this projection instance (e.g., "0" for first of 4 workers).
-	// totalPartitions is the total number of projection instances.
-	ShouldProcess(aggregateID string, partitionKey int, totalPartitions int) bool
+// ShouldProcess returns true if this projection instance should process the given event.
+// aggregateID is the aggregate ID of the event.
+// partitionKey identifies this projection instance (e.g., "0" for first of 4 workers).
+// totalPartitions is the total number of projection instances.
+ShouldProcess(aggregateID string, partitionKey int, totalPartitions int) bool
 }
 
 // HashPartitionStrategy implements deterministic hash-based partitioning.
@@ -100,255 +98,51 @@ type HashPartitionStrategy struct{}
 
 // ShouldProcess implements PartitionStrategy using FNV-1a hashing.
 func (HashPartitionStrategy) ShouldProcess(aggregateID string, partitionKey, totalPartitions int) bool {
-	if totalPartitions <= 1 {
-		return true
-	}
+if totalPartitions <= 1 {
+return true
+}
 
-	h := fnv.New32a()
-	h.Write([]byte(aggregateID))
-	partition := int(h.Sum32()) % totalPartitions
-	return partition == partitionKey
+h := fnv.New32a()
+h.Write([]byte(aggregateID))
+partition := int(h.Sum32()) % totalPartitions
+return partition == partitionKey
 }
 
 // ProcessorConfig configures a projection processor.
 type ProcessorConfig struct {
-	// PartitionStrategy determines which events this processor handles
-	PartitionStrategy PartitionStrategy
+// PartitionStrategy determines which events this processor handles
+PartitionStrategy PartitionStrategy
 
-	// Logger is an optional logger for observability.
-	// If nil, logging is disabled (zero overhead).
-	Logger es.Logger
+// Logger is an optional logger for observability.
+// If nil, logging is disabled (zero overhead).
+Logger es.Logger
 
-	// BatchSize is the number of events to read per batch
-	BatchSize int
+// BatchSize is the number of events to read per batch
+BatchSize int
 
-	// PartitionKey identifies this processor instance (0-indexed)
-	PartitionKey int
+// PartitionKey identifies this processor instance (0-indexed)
+PartitionKey int
 
-	// TotalPartitions is the total number of processor instances
-	TotalPartitions int
+// TotalPartitions is the total number of processor instances
+TotalPartitions int
 }
 
 // DefaultProcessorConfig returns the default configuration.
 func DefaultProcessorConfig() ProcessorConfig {
-	return ProcessorConfig{
-		BatchSize:         100,
-		PartitionKey:      0,
-		TotalPartitions:   1,
-		PartitionStrategy: HashPartitionStrategy{},
-		Logger:            nil, // No logging by default
-	}
+return ProcessorConfig{
+BatchSize:         100,
+PartitionKey:      0,
+TotalPartitions:   1,
+PartitionStrategy: HashPartitionStrategy{},
+Logger:            nil, // No logging by default
+}
 }
 
-// Processor processes events for projections.
-type Processor struct {
-	eventReader     store.EventReader
-	checkpointStore store.CheckpointStore
-	txProvider      TxProvider
-	config          *ProcessorConfig
-}
-
-// TxProvider is an interface for providing database transactions.
-// This allows the Processor to remain database-agnostic while still
-// managing transactions for projection processing.
-type TxProvider interface {
-	// BeginTx starts a new transaction with the given context and options.
-	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
-}
-
-// Ensure *sql.DB implements TxProvider at compile time
-var _ TxProvider = (*sql.DB)(nil)
-
-// NewProcessor creates a new projection processor.
-//
-// Note: In v1.1.0, this function was changed to accept *ProcessorConfig (pointer)
-// instead of ProcessorConfig (value) to reduce memory overhead. This is a breaking
-// change - update your code to pass &config instead of config.
-//
-// The txProvider parameter typically is *sql.DB, which implements the TxProvider interface.
-func NewProcessor(txProvider TxProvider, eventReader store.EventReader, checkpointStore store.CheckpointStore, config *ProcessorConfig) *Processor {
-	return &Processor{
-		config:          config,
-		eventReader:     eventReader,
-		checkpointStore: checkpointStore,
-		txProvider:      txProvider,
-	}
-}
-
+// ProcessorRunner is the interface that adapter-specific processors must implement.
+// This allows the Runner to orchestrate projections regardless of the underlying
+// storage implementation (SQL, NoSQL, message brokers, etc.).
+type ProcessorRunner interface {
 // Run processes events for the given projection until the context is canceled.
-// It reads events in batches, applies the partition filter, and updates checkpoints.
-// Returns ErrProjectionStopped if the projection handler returns an error.
-func (p *Processor) Run(ctx context.Context, projection Projection) error {
-	if p.config.Logger != nil {
-		p.config.Logger.Info(ctx, "projection processor starting",
-			"projection", projection.Name(),
-			"partition_key", p.config.PartitionKey,
-			"total_partitions", p.config.TotalPartitions,
-			"batch_size", p.config.BatchSize)
-	}
-
-	// Build aggregate type filter once for the projection (not per batch)
-	aggregateTypeFilter := buildAggregateTypeFilter(projection)
-
-	for {
-		select {
-		case <-ctx.Done():
-			if p.config.Logger != nil {
-				p.config.Logger.Info(ctx, "projection processor stopped",
-					"projection", projection.Name(),
-					"reason", ctx.Err())
-			}
-			return ctx.Err()
-		default:
-		}
-
-		// Process batch in transaction
-		err := p.processBatch(ctx, projection, aggregateTypeFilter)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) || err.Error() == "no events in batch" {
-				// No events available, continue polling
-				continue
-			}
-			if p.config.Logger != nil {
-				p.config.Logger.Error(ctx, "projection processor error",
-					"projection", projection.Name(),
-					"error", err)
-			}
-			return fmt.Errorf("%w: %v", ErrProjectionStopped, err)
-		}
-	}
-}
-
-// buildAggregateTypeFilter builds a filter map for scoped projections.
-// Returns nil if the projection is not scoped or has an empty aggregate types list.
-func buildAggregateTypeFilter(projection Projection) map[string]bool {
-	scopedProj, ok := projection.(ScopedProjection)
-	if !ok {
-		return nil
-	}
-
-	types := scopedProj.AggregateTypes()
-	if len(types) == 0 {
-		return nil
-	}
-
-	filter := make(map[string]bool, len(types))
-	for _, aggType := range types {
-		filter[aggType] = true
-	}
-	return filter
-}
-
-// shouldProcessEvent checks if an event should be processed based on partition and aggregate type filters.
-//
-//nolint:gocritic // hugeParam: Intentionally pass by value to match event processing pattern
-func (p *Processor) shouldProcessEvent(event es.PersistedEvent, aggregateTypeFilter map[string]bool) bool {
-	// Apply partition filter
-	if !p.config.PartitionStrategy.ShouldProcess(
-		event.AggregateID,
-		p.config.PartitionKey,
-		p.config.TotalPartitions,
-	) {
-		return false
-	}
-
-	// Apply aggregate type filter if projection is scoped
-	if aggregateTypeFilter != nil && !aggregateTypeFilter[event.AggregateType] {
-		return false
-	}
-
-	return true
-}
-
-func (p *Processor) processBatch(ctx context.Context, projection Projection, aggregateTypeFilter map[string]bool) error {
-	tx, err := p.txProvider.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		//nolint:errcheck // Rollback error ignored: expected to fail if commit succeeds
-		tx.Rollback()
-	}()
-
-	// Get current checkpoint
-	checkpoint, err := p.checkpointStore.GetCheckpoint(ctx, tx, projection.Name())
-	if err != nil {
-		return fmt.Errorf("failed to get checkpoint: %w", err)
-	}
-
-	if p.config.Logger != nil {
-		p.config.Logger.Debug(ctx, "processing batch",
-			"projection", projection.Name(),
-			"checkpoint", checkpoint,
-			"batch_size", p.config.BatchSize)
-	}
-
-	// Read events
-	events, err := p.eventReader.ReadEvents(ctx, tx, checkpoint, p.config.BatchSize)
-	if err != nil {
-		return fmt.Errorf("failed to read events: %w", err)
-	}
-
-	if len(events) == 0 {
-		return errors.New("no events in batch")
-	}
-
-	// Process events with partition filter and aggregate type filter
-	// Note: Events are passed by value to projection handlers to enforce immutability.
-	// This creates a 232-byte copy per event, but large data (Payload, Metadata) is not deep-copied
-	// since slices share references to their backing arrays. The immutability guarantee
-	// is more valuable than the minimal copy cost in event processing workloads.
-	var lastPosition int64
-	var processedCount int
-	var skippedCount int
-	for i := range events {
-		event := events[i]
-
-		// Check if event should be processed
-		if !p.shouldProcessEvent(event, aggregateTypeFilter) {
-			lastPosition = event.GlobalPosition
-			skippedCount++
-			continue
-		}
-
-		// Handle event
-		handlerErr := projection.Handle(ctx, tx, event)
-		if handlerErr != nil {
-			if p.config.Logger != nil {
-				p.config.Logger.Error(ctx, "projection handler error",
-					"projection", projection.Name(),
-					"position", event.GlobalPosition,
-					"aggregate_type", event.AggregateType,
-					"aggregate_id", event.AggregateID,
-					"event_type", event.EventType,
-					"error", handlerErr)
-			}
-			return fmt.Errorf("projection handler error at position %d: %w", event.GlobalPosition, handlerErr)
-		}
-
-		lastPosition = event.GlobalPosition
-		processedCount++
-	}
-
-	// Update checkpoint
-	if lastPosition > 0 {
-		err = p.checkpointStore.UpdateCheckpoint(ctx, tx, projection.Name(), lastPosition)
-		if err != nil {
-			return fmt.Errorf("failed to update checkpoint: %w", err)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
-	if p.config.Logger != nil {
-		p.config.Logger.Debug(ctx, "batch processed",
-			"projection", projection.Name(),
-			"processed", processedCount,
-			"skipped", skippedCount,
-			"checkpoint", lastPosition)
-	}
-
-	return nil
+// Returns an error if the projection handler fails.
+Run(ctx context.Context, projection Projection) error
 }

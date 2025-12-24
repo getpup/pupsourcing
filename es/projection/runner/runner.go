@@ -4,238 +4,112 @@
 package runner
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"sync"
+"context"
+"errors"
+"fmt"
+"sync"
 
-	"github.com/getpup/pupsourcing/es/projection"
-	"github.com/getpup/pupsourcing/es/store"
+"github.com/getpup/pupsourcing/es/projection"
 )
 
 var (
-	// ErrNoProjections indicates that no projections were provided to run.
-	ErrNoProjections = errors.New("no projections provided")
+// ErrNoProjections indicates that no projections were provided to run.
+ErrNoProjections = errors.New("no projections provided")
 
-	// ErrInvalidPartitionConfig indicates invalid partition configuration.
-	ErrInvalidPartitionConfig = errors.New("invalid partition configuration")
+// ErrInvalidPartitionConfig indicates invalid partition configuration.
+ErrInvalidPartitionConfig = errors.New("invalid partition configuration")
 )
 
-// ProjectionConfig defines configuration for a single projection.
-type ProjectionConfig struct {
-	// Projection is the projection to run
-	Projection projection.Projection
-
-	// ProcessorConfig is the configuration for the projection processor
-	ProcessorConfig projection.ProcessorConfig
+// ProjectionRunner pairs a projection with its processor.
+// The processor is adapter-specific (postgres.Processor, mysql.Processor, etc.)
+// and knows how to manage transactions and checkpoints for that storage type.
+type ProjectionRunner struct {
+Projection projection.Projection
+Processor  projection.ProcessorRunner
 }
 
-// Runner orchestrates multiple projections, optionally with partitioning.
-// It is designed to be explicit and deterministic, with no magic auto-discovery.
-// The runner works with context cancellation and remains transaction-agnostic.
+// Runner orchestrates multiple projections concurrently.
+// It is storage-agnostic and works with any processor implementation.
 //
-// Example:
+// Example with PostgreSQL:
 //
-//	runner := runner.New(db, eventReader)
-//	err := runner.Run(ctx, []ProjectionConfig{
-//	    {Projection: &MyProjection{}, ProcessorConfig: config1},
-//	    {Projection: &MyOtherProjection{}, ProcessorConfig: config2},
-//	})
-// Runner orchestrates multiple projections, optionally with partitioning.
-// It is designed to be explicit and deterministic, with no magic auto-discovery.
-// The runner works with context cancellation and remains transaction-agnostic.
+//store := postgres.NewStore(postgres.DefaultStoreConfig())
+//processor1 := postgres.NewProcessor(db, store, &config1)
+//processor2 := postgres.NewProcessor(db, store, &config2)
 //
-// Example:
-//
-//	runner := runner.New(db, eventReader, checkpointStore)
-//	err := runner.Run(ctx, []ProjectionConfig{
-//	    {Projection: &MyProjection{}, ProcessorConfig: config1},
-//	    {Projection: &MyOtherProjection{}, ProcessorConfig: config2},
-//	})
-type Runner struct {
-	txProvider      projection.TxProvider
-	eventReader     store.EventReader
-	checkpointStore store.CheckpointStore
-}
+//runner := runner.New()
+//err := runner.Run(ctx, []runner.ProjectionRunner{
+//    {Projection: &MyProjection{}, Processor: processor1},
+//    {Projection: &MyOtherProjection{}, Processor: processor2},
+//})
+type Runner struct{}
 
 // New creates a new projection runner.
-// The txProvider is typically *sql.DB, which implements the TxProvider interface.
-func New(txProvider projection.TxProvider, eventReader store.EventReader, checkpointStore store.CheckpointStore) *Runner {
-	return &Runner{
-		txProvider:      txProvider,
-		eventReader:     eventReader,
-		checkpointStore: checkpointStore,
-	}
+func New() *Runner {
+return &Runner{}
 }
 
 // Run runs multiple projections concurrently until the context is canceled.
-// Each projection runs in its own goroutine with its specified configuration.
+// Each projection runs in its own goroutine with its processor.
 // Returns when the context is canceled or when any projection returns an error.
 //
 // If a projection returns an error, all other projections are canceled and the error
 // is returned. This ensures fail-fast behavior.
 //
 // This method is safe to call from CLIs and does not assume single-process ownership.
-// Coordination happens via database checkpoints.
-func (r *Runner) Run(ctx context.Context, configs []ProjectionConfig) error {
-	if len(configs) == 0 {
-		return ErrNoProjections
-	}
-
-	// Validate configurations
-	for i, config := range configs {
-		if config.Projection == nil {
-			return fmt.Errorf("projection at index %d is nil", i)
-		}
-		if config.ProcessorConfig.PartitionKey < 0 {
-			return fmt.Errorf("%w: partition key must be >= 0", ErrInvalidPartitionConfig)
-		}
-		if config.ProcessorConfig.TotalPartitions < 1 {
-			return fmt.Errorf("%w: total partitions must be >= 1", ErrInvalidPartitionConfig)
-		}
-		if config.ProcessorConfig.PartitionKey >= config.ProcessorConfig.TotalPartitions {
-			return fmt.Errorf("%w: partition key must be < total partitions", ErrInvalidPartitionConfig)
-		}
-	}
-
-	// Create a context that we can cancel if any projection fails
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	var wg sync.WaitGroup
-	errChan := make(chan error, len(configs))
-
-	// Start each projection in its own goroutine
-	for _, config := range configs {
-		wg.Add(1)
-		go func(cfg ProjectionConfig) {
-			defer wg.Done()
-
-			processor := projection.NewProcessor(r.txProvider, r.eventReader, r.checkpointStore, &cfg.ProcessorConfig)
-			err := processor.Run(ctx, cfg.Projection)
-
-			// Only report errors that aren't from context cancellation
-			if err != nil && !errors.Is(err, context.Canceled) {
-				errChan <- fmt.Errorf("projection %q failed: %w", cfg.Projection.Name(), err)
-			}
-		}(config)
-	}
-
-	// Wait for all projections to complete or for an error
-	go func() {
-		wg.Wait()
-		close(errChan)
-	}()
-
-	// Return the first error, or nil if context was canceled
-	select {
-	case err := <-errChan:
-		if err != nil {
-			cancel() // Cancel all other projections
-			return err
-		}
-		return ctx.Err()
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+// Coordination happens via the processor's checkpoint management.
+func (r *Runner) Run(ctx context.Context, runners []ProjectionRunner) error {
+if len(runners) == 0 {
+return ErrNoProjections
 }
 
-// partitionedProjection wraps a projection to give it a unique name per partition
-type partitionedProjection struct {
-	projection.Projection
-	partitionKey int
+// Validate configurations
+for i, runner := range runners {
+if runner.Projection == nil {
+return fmt.Errorf("projection at index %d is nil", i)
+}
+if runner.Processor == nil {
+return fmt.Errorf("processor at index %d is nil", i)
+}
 }
 
-func (p *partitionedProjection) Name() string {
-	return fmt.Sprintf("%s_partition_%d", p.Projection.Name(), p.partitionKey)
+// Create a context that we can cancel if any projection fails
+ctx, cancel := context.WithCancel(ctx)
+defer cancel()
+
+var wg sync.WaitGroup
+errChan := make(chan error, len(runners))
+
+// Start each projection in its own goroutine
+for _, runner := range runners {
+wg.Add(1)
+go func(pr ProjectionRunner) {
+defer wg.Done()
+
+err := pr.Processor.Run(ctx, pr.Projection)
+
+// Only report errors that aren't from context cancellation
+if err != nil && !errors.Is(err, context.Canceled) {
+errChan <- fmt.Errorf("projection %q failed: %w", pr.Projection.Name(), err)
+}
+}(runner)
 }
 
-// RunProjectionPartitions is a helper that runs a single projection with N partitions
-// in the same process. This is useful for simple horizontal scaling without needing
-// to deploy multiple processes.
-//
-// Each partition runs in its own goroutine. All partitions share the same database
-// connection pool but maintain separate checkpoints in the database.
-//
-// IMPORTANT: The projection instance is shared across all workers. If your projection
-// maintains state, it MUST be thread-safe (use sync.Mutex, atomic operations, or channels).
-// Alternatively, the projection can be stateless and only update database tables.
-//
-// Example:
-//
-//	err := runner.RunProjectionPartitions(ctx, db, store, myProjection, 4)
-//
-// This creates 4 workers processing different subsets of events in parallel.
-// Events for the same aggregate always go to the same partition, maintaining ordering.
-//
-// The txProvider is typically *sql.DB, which implements the TxProvider interface.
-func RunProjectionPartitions(
-	ctx context.Context,
-	txProvider projection.TxProvider,
-	eventReader store.EventReader,
-	checkpointStore store.CheckpointStore,
-	proj projection.Projection,
-	totalPartitions int,
-) error {
-	if totalPartitions < 1 {
-		return fmt.Errorf("%w: total partitions must be >= 1", ErrInvalidPartitionConfig)
-	}
+// Wait for all projections to complete or for an error
+go func() {
+wg.Wait()
+close(errChan)
+}()
 
-	configs := make([]ProjectionConfig, totalPartitions)
-	for i := 0; i < totalPartitions; i++ {
-		config := projection.DefaultProcessorConfig()
-		config.PartitionKey = i
-		config.TotalPartitions = totalPartitions
-
-		// Wrap projection to give it a unique name per partition
-		partProj := &partitionedProjection{
-			Projection:   proj,
-			partitionKey: i,
-		}
-
-		configs[i] = ProjectionConfig{
-			Projection:      partProj,
-			ProcessorConfig: config,
-		}
-	}
-
-	runner := New(txProvider, eventReader, checkpointStore)
-	return runner.Run(ctx, configs)
+// Return the first error, or nil if context was canceled
+select {
+case err := <-errChan:
+if err != nil {
+cancel() // Cancel all other projections
+return err
 }
-
-// RunMultipleProjections is a helper that runs multiple projections, each with its own
-// partitioning configuration. This is useful when you want to run different projections
-// with different scaling characteristics in the same process.
-//
-// Example:
-//
-//	err := runner.RunMultipleProjections(ctx, db, store, checkpointStore, []runner.ProjectionConfig{
-//	    {
-//	        Projection: &FastProjection{},
-//	        ProcessorConfig: projection.ProcessorConfig{
-//	            BatchSize: 1000,
-//	            PartitionKey: 0,
-//	            TotalPartitions: 1,
-//	        },
-//	    },
-//	    {
-//	        Projection: &SlowProjection{},
-//	        ProcessorConfig: projection.ProcessorConfig{
-//	            BatchSize: 10,
-//	            PartitionKey: workerID,
-//	            TotalPartitions: 4,
-//	        },
-//	    },
-//	})
-//
-// The txProvider is typically *sql.DB, which implements the TxProvider interface.
-func RunMultipleProjections(
-	ctx context.Context,
-	txProvider projection.TxProvider,
-	eventReader store.EventReader,
-	checkpointStore store.CheckpointStore,
-	configs []ProjectionConfig,
-) error {
-	runner := New(txProvider, eventReader, checkpointStore)
-	return runner.Run(ctx, configs)
+return ctx.Err()
+case <-ctx.Done():
+return ctx.Err()
+}
 }

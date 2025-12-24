@@ -139,8 +139,6 @@ func main() {
 		{
 			Projection: userCounter,
 			ProcessorConfig: projection.ProcessorConfig{
-				EventsTable:       "events",
-				CheckpointsTable:  "projection_checkpoints",
 				BatchSize:         100,
 				PartitionKey:      0,
 				TotalPartitions:   1,
@@ -150,8 +148,6 @@ func main() {
 		{
 			Projection: revenueTracker,
 			ProcessorConfig: projection.ProcessorConfig{
-				EventsTable:       "events",
-				CheckpointsTable:  "projection_checkpoints",
 				BatchSize:         50, // Different batch size
 				PartitionKey:      0,
 				TotalPartitions:   1,
@@ -161,8 +157,6 @@ func main() {
 		{
 			Projection: activityLog,
 			ProcessorConfig: projection.ProcessorConfig{
-				EventsTable:       "events",
-				CheckpointsTable:  "projection_checkpoints",
 				BatchSize:         200, // Larger batch for logging
 				PartitionKey:      0,
 				TotalPartitions:   1,
@@ -187,7 +181,7 @@ func main() {
 	// Run all projections concurrently using the runner
 	log.Println("Starting multiple projections...")
 	log.Println("Press Ctrl+C to stop")
-	err = runner.RunMultipleProjections(ctx, db, store, configs)
+	err = runner.RunMultipleProjections(ctx, db, store, store, configs)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		//nolint:gocritic // it's just an example code
 		log.Fatalf("Runner error: %v", err)

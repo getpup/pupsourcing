@@ -163,7 +163,7 @@ func handleAppendMode(ctx context.Context, db *sql.DB, store *postgres.Store, nu
 func handleProcessMode(ctx context.Context, db *sql.DB, store *postgres.Store) {
 	proj := &ReliableProjection{}
 	config := projection.DefaultProcessorConfig()
-	processor := projection.NewProcessor(db, store, &config)
+	processor := projection.NewProcessor(db, store, store, &config)
 
 	// Check current checkpoint before starting
 	checkpoint := getCurrentCheckpoint(ctx, db, proj.Name())

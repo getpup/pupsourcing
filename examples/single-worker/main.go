@@ -89,7 +89,7 @@ func main() {
 
 	// Create processor with default configuration
 	config := projection.DefaultProcessorConfig()
-	processor := projection.NewProcessor(db, store, &config)
+	processor := projection.NewProcessor(db, store, store, &config)
 
 	// Set up graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)

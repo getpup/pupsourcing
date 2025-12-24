@@ -175,8 +175,6 @@ func main() {
 			// Scoped projection - only receives User events
 			Projection: userReadModel,
 			ProcessorConfig: projection.ProcessorConfig{
-				EventsTable:       "events",
-				CheckpointsTable:  "projection_checkpoints",
 				BatchSize:         100,
 				PartitionKey:      0,
 				TotalPartitions:   1,
@@ -187,8 +185,6 @@ func main() {
 			// Scoped projection - only receives Order events
 			Projection: orderReadModel,
 			ProcessorConfig: projection.ProcessorConfig{
-				EventsTable:       "events",
-				CheckpointsTable:  "projection_checkpoints",
 				BatchSize:         100,
 				PartitionKey:      0,
 				TotalPartitions:   1,
@@ -199,8 +195,6 @@ func main() {
 			// Global projection - receives ALL events
 			Projection: watermillIntegration,
 			ProcessorConfig: projection.ProcessorConfig{
-				EventsTable:       "events",
-				CheckpointsTable:  "projection_checkpoints",
 				BatchSize:         100,
 				PartitionKey:      0,
 				TotalPartitions:   1,
@@ -229,7 +223,7 @@ func main() {
 	log.Println("- WatermillIntegration: GLOBAL, receives ALL events")
 	log.Println("\nPress Ctrl+C to stop")
 
-	err = runner.RunMultipleProjections(ctx, db, store, configs)
+	err = runner.RunMultipleProjections(ctx, db, store, store, configs)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		log.Printf("Runner error: %v", err)
 		return

@@ -180,7 +180,7 @@ func main() {
 
 	processorConfig := projection.DefaultProcessorConfig()
 	processorConfig.Logger = projectionLogger
-	processor := projection.NewProcessor(db, store, &processorConfig)
+	processor := projection.NewProcessor(db, store, store, &processorConfig)
 
 	// Run projection for a short time
 	ctx2, cancel := context.WithTimeout(ctx, 2*time.Second)

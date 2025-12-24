@@ -125,7 +125,7 @@ func main() {
 	config.PartitionKey = *partitionKey
 	config.TotalPartitions = *totalPartitions
 
-	processor := projection.NewProcessor(db, store, &config)
+	processor := projection.NewProcessor(db, store, store, &config)
 
 	// Set up graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)

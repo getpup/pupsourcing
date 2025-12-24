@@ -477,13 +477,16 @@ type Processor struct {
 Creates a new projection processor.
 
 ```go
-func NewProcessor(db *sql.DB, eventReader store.EventReader, config *ProcessorConfig) *Processor
+func NewProcessor(txProvider TxProvider, eventReader store.EventReader, checkpointStore store.CheckpointStore, config *ProcessorConfig) *Processor
 ```
 
 **Parameters:**
-- `db`: Database connection
+- `txProvider`: Transaction provider (typically `*sql.DB`)
 - `eventReader`: Event reader implementation
+- `checkpointStore`: Checkpoint store implementation
 - `config`: Processor configuration (passed by pointer)
+
+**Breaking Change (v1.2.0):** Added `checkpointStore` parameter to decouple from database-specific checkpoint logic. The `txProvider` replaces the previous `db` parameter to support non-SQL implementations.
 
 **Breaking Change (v1.1.0):** Changed from `ProcessorConfig` (value) to `*ProcessorConfig` (pointer) for better performance.
 
@@ -507,7 +510,9 @@ func (p *Processor) Run(ctx context.Context, projection Projection) error
 
 **Example:**
 ```go
-processor := projection.NewProcessor(db, store, config)
+store := postgres.NewStore(postgres.DefaultStoreConfig())
+config := projection.DefaultProcessorConfig()
+processor := projection.NewProcessor(db, store, store, &config)
 
 ctx, cancel := context.WithCancel(context.Background())
 defer cancel()
@@ -526,8 +531,6 @@ Configuration for projection processor.
 type ProcessorConfig struct {
     PartitionStrategy PartitionStrategy  // Partitioning strategy
     Logger            es.Logger          // Optional logger (nil = disabled)
-    EventsTable       string             // Name of events table
-    CheckpointsTable  string             // Name of checkpoints table
     BatchSize         int                // Events per batch
     PartitionKey      int                // This worker's partition (0-indexed)
     TotalPartitions   int                // Total number of partitions
@@ -536,6 +539,8 @@ type ProcessorConfig struct {
 
 **Note:** Fields are ordered by size (interfaces/pointers first) for optimal memory layout.
 
+**Breaking Change (v1.2.0):** Removed `EventsTable` and `CheckpointsTable` fields. Table configuration is now handled by the adapter's store configuration.
+
 #### DefaultProcessorConfig
 
 Returns default configuration.
@@ -543,8 +548,6 @@ Returns default configuration.
 ```go
 func DefaultProcessorConfig() ProcessorConfig {
     return ProcessorConfig{
-        EventsTable:       "events",
-        CheckpointsTable:  "projection_checkpoints",
         BatchSize:         100,
         PartitionKey:      0,
         TotalPartitions:   1,
@@ -613,7 +616,8 @@ func (r *Runner) Run(ctx context.Context, configs []ProjectionConfig) error
 
 **Example:**
 ```go
-runner := runner.New(db, store)
+store := postgres.NewStore(postgres.DefaultStoreConfig())
+runner := runner.New(db, store, store)
 
 configs := []runner.ProjectionConfig{
     {Projection: proj1, ProcessorConfig: config1},
@@ -639,24 +643,29 @@ type ProjectionConfig struct {
 Helper that runs a projection with N partitions in the same process.
 
 ```go
-func RunProjectionPartitions(ctx context.Context, db *sql.DB, eventReader store.EventReader,
+func RunProjectionPartitions(ctx context.Context, txProvider projection.TxProvider, 
+                            eventReader store.EventReader, checkpointStore store.CheckpointStore,
                             proj projection.Projection, totalPartitions int) error
 ```
 
 **Parameters:**
 - `ctx`: Context
-- `db`: Database
+- `txProvider`: Transaction provider (typically `*sql.DB`)
 - `eventReader`: Event reader
+- `checkpointStore`: Checkpoint store
 - `proj`: Projection to run
 - `totalPartitions`: Number of partitions (workers)
 
 **Returns:**
 - `error`: Error if any
 
+**Breaking Change (v1.2.0):** Added `checkpointStore` parameter for adapter pattern compliance.
+
 **Example:**
 ```go
+store := postgres.NewStore(postgres.DefaultStoreConfig())
 // Run 4 workers in same process
-err := runner.RunProjectionPartitions(ctx, db, store, projection, 4)
+err := runner.RunProjectionPartitions(ctx, db, store, store, projection, 4)
 ```
 
 ### runner.RunMultipleProjections
@@ -664,25 +673,29 @@ err := runner.RunProjectionPartitions(ctx, db, store, projection, 4)
 Helper that runs multiple projections with custom configurations.
 
 ```go
-func RunMultipleProjections(ctx context.Context, db *sql.DB, eventReader store.EventReader,
+func RunMultipleProjections(ctx context.Context, txProvider projection.TxProvider,
+                           eventReader store.EventReader, checkpointStore store.CheckpointStore,
                            configs []ProjectionConfig) error
 ```
 
+**Breaking Change (v1.2.0):** Added `checkpointStore` parameter for adapter pattern compliance.
+
 **Example:**
 ```go
+store := postgres.NewStore(postgres.DefaultStoreConfig())
 configs := []runner.ProjectionConfig{
     {Projection: &Projection1{}, ProcessorConfig: config1},
     {Projection: &Projection2{}, ProcessorConfig: config2},
 }
 
-err := runner.RunMultipleProjections(ctx, db, store, configs)
+err := runner.RunMultipleProjections(ctx, db, store, store, configs)
 ```
 
 ## PostgreSQL Adapter
 
 ### postgres.Store
 
-PostgreSQL implementation of EventStore, EventReader, and AggregateStreamReader.
+PostgreSQL implementation of EventStore, EventReader, AggregateStreamReader, and CheckpointStore.
 
 ```go
 type Store struct {

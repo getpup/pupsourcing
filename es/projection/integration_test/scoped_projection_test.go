@@ -137,7 +137,7 @@ func TestScopedProjection_GlobalReceivesAllEvents(t *testing.T) {
 	// Create global projection
 	globalProj := &globalProjection{name: "global_test"}
 	config := projection.DefaultProcessorConfig()
-	processor := projection.NewProcessor(db, store, &config)
+	processor := projection.NewProcessor(db, store, store, &config)
 
 	// Run projection for a short time
 	ctx2, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
@@ -239,7 +239,7 @@ func TestScopedProjection_OnlyReceivesMatchingAggregates(t *testing.T) {
 		aggregateTypes: []string{"User"},
 	}
 	config := projection.DefaultProcessorConfig()
-	processor := projection.NewProcessor(db, store, &config)
+	processor := projection.NewProcessor(db, store, store, &config)
 
 	// Run projection for a short time
 	ctx2, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
@@ -335,7 +335,7 @@ func TestScopedProjection_MultipleAggregateTypes(t *testing.T) {
 		aggregateTypes: []string{"User", "Order"},
 	}
 	config := projection.DefaultProcessorConfig()
-	processor := projection.NewProcessor(db, store, &config)
+	processor := projection.NewProcessor(db, store, store, &config)
 
 	// Run projection for a short time
 	ctx2, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
@@ -411,7 +411,7 @@ func TestScopedProjection_EmptyAggregateTypesReceivesAll(t *testing.T) {
 		aggregateTypes: []string{},
 	}
 	config := projection.DefaultProcessorConfig()
-	processor := projection.NewProcessor(db, store, &config)
+	processor := projection.NewProcessor(db, store, store, &config)
 
 	// Run projection for a short time
 	ctx2, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
@@ -493,7 +493,7 @@ func TestScopedProjection_MixedProjectionsWorkCorrectly(t *testing.T) {
 
 	// Run global projection
 	config1 := projection.DefaultProcessorConfig()
-	processor1 := projection.NewProcessor(db, store, &config1)
+	processor1 := projection.NewProcessor(db, store, store, &config1)
 
 	ctx1, cancel1 := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel1()
@@ -505,7 +505,7 @@ func TestScopedProjection_MixedProjectionsWorkCorrectly(t *testing.T) {
 
 	// Run scoped projection
 	config2 := projection.DefaultProcessorConfig()
-	processor2 := projection.NewProcessor(db, store, &config2)
+	processor2 := projection.NewProcessor(db, store, store, &config2)
 
 	ctx2, cancel2 := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel2()

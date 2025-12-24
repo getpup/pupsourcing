@@ -202,7 +202,7 @@ func TestRunProjectionPartitions(t *testing.T) {
 	ctx2, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	err := runner.RunProjectionPartitions(ctx2, db, store, proj, 4)
+	err := runner.RunProjectionPartitions(ctx2, db, store, store, proj, 4)
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("RunProjectionPartitions failed: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestRunMultipleProjections(t *testing.T) {
 	ctx2, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	err := runner.RunMultipleProjections(ctx2, db, store, configs)
+	err := runner.RunMultipleProjections(ctx2, db, store, store, configs)
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("RunMultipleProjections failed: %v", err)
 	}
@@ -358,7 +358,7 @@ func TestRunnerErrorHandling(t *testing.T) {
 		failAfter: 10,
 	}
 
-	r := runner.New(db, store)
+	r := runner.New(db, store, store)
 
 	// Use small batch size to ensure we save checkpoints before failure
 	config := projection.DefaultProcessorConfig()
@@ -439,7 +439,7 @@ func TestRunnerConcurrentCheckpoints(t *testing.T) {
 	ctx2, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	err := runner.RunProjectionPartitions(ctx2, db, store, proj, 4)
+	err := runner.RunProjectionPartitions(ctx2, db, store, store, proj, 4)
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("RunProjectionPartitions failed: %v", err)
 	}

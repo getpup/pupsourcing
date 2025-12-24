@@ -193,7 +193,7 @@ func TestProjection_BasicProcessing(t *testing.T) {
 	// Run projection
 	proj := newTestProjection("test_projection")
 	config := projection.DefaultProcessorConfig()
-	processor := projection.NewProcessor(db, store, &config)
+	processor := projection.NewProcessor(db, store, store, &config)
 
 	// Run for a short time - increased timeout for CI environment
 	ctx2, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -252,7 +252,7 @@ func TestProjection_Checkpoint(t *testing.T) {
 	proj1 := newTestProjection("checkpoint_test")
 	config := projection.DefaultProcessorConfig()
 	config.BatchSize = 2
-	processor1 := projection.NewProcessor(db, store, &config)
+	processor1 := projection.NewProcessor(db, store, store, &config)
 
 	ctx1, cancel1 := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel1()
@@ -266,7 +266,7 @@ func TestProjection_Checkpoint(t *testing.T) {
 
 	// Second run should resume from checkpoint
 	proj2 := newTestProjection("checkpoint_test")
-	processor2 := projection.NewProcessor(db, store, &config)
+	processor2 := projection.NewProcessor(db, store, store, &config)
 
 	ctx2, cancel2 := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel2()
@@ -318,7 +318,7 @@ func TestProjection_ErrorHandling(t *testing.T) {
 	// Create projection that returns error
 	errorProj := &errorProjection{name: "error_test"}
 	config := projection.DefaultProcessorConfig()
-	processor := projection.NewProcessor(db, store, &config)
+	processor := projection.NewProcessor(db, store, store, &config)
 
 	ctx2, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()

@@ -498,3 +498,37 @@ func parseTimestamp(s string) (time.Time, error) {
 
 	return time.Time{}, fmt.Errorf("unable to parse timestamp: %s", s)
 }
+
+// GetCheckpoint implements store.CheckpointStore.
+func (s *Store) GetCheckpoint(ctx context.Context, tx es.DBTX, projectionName string) (int64, error) {
+	query := fmt.Sprintf(`
+		SELECT last_global_position 
+		FROM %s 
+		WHERE projection_name = ?
+	`, s.config.CheckpointsTable)
+
+	var checkpoint int64
+	err := tx.QueryRowContext(ctx, query, projectionName).Scan(&checkpoint)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return checkpoint, nil
+}
+
+// UpdateCheckpoint implements store.CheckpointStore.
+func (s *Store) UpdateCheckpoint(ctx context.Context, tx es.DBTX, projectionName string, position int64) error {
+	query := fmt.Sprintf(`
+		INSERT INTO %s (projection_name, last_global_position, updated_at)
+		VALUES (?, ?, datetime('now'))
+		ON CONFLICT (projection_name)
+		DO UPDATE SET 
+			last_global_position = excluded.last_global_position,
+			updated_at = excluded.updated_at
+	`, s.config.CheckpointsTable)
+
+	_, err := tx.ExecContext(ctx, query, projectionName, position)
+	return err
+}

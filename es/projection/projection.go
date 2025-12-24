@@ -119,12 +119,6 @@ type ProcessorConfig struct {
 	// If nil, logging is disabled (zero overhead).
 	Logger es.Logger
 
-	// EventsTable is the name of the events table
-	EventsTable string
-
-	// CheckpointsTable is the name of the checkpoints table
-	CheckpointsTable string
-
 	// BatchSize is the number of events to read per batch
 	BatchSize int
 
@@ -138,8 +132,6 @@ type ProcessorConfig struct {
 // DefaultProcessorConfig returns the default configuration.
 func DefaultProcessorConfig() ProcessorConfig {
 	return ProcessorConfig{
-		EventsTable:       "events",
-		CheckpointsTable:  "projection_checkpoints",
 		BatchSize:         100,
 		PartitionKey:      0,
 		TotalPartitions:   1,
@@ -150,21 +142,36 @@ func DefaultProcessorConfig() ProcessorConfig {
 
 // Processor processes events for projections.
 type Processor struct {
-	eventReader store.EventReader
-	db          *sql.DB
-	config      *ProcessorConfig
+	eventReader     store.EventReader
+	checkpointStore store.CheckpointStore
+	txProvider      TxProvider
+	config          *ProcessorConfig
 }
+
+// TxProvider is an interface for providing database transactions.
+// This allows the Processor to remain database-agnostic while still
+// managing transactions for projection processing.
+type TxProvider interface {
+	// BeginTx starts a new transaction with the given context and options.
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+}
+
+// Ensure *sql.DB implements TxProvider at compile time
+var _ TxProvider = (*sql.DB)(nil)
 
 // NewProcessor creates a new projection processor.
 //
 // Note: In v1.1.0, this function was changed to accept *ProcessorConfig (pointer)
 // instead of ProcessorConfig (value) to reduce memory overhead. This is a breaking
 // change - update your code to pass &config instead of config.
-func NewProcessor(db *sql.DB, eventReader store.EventReader, config *ProcessorConfig) *Processor {
+//
+// The txProvider parameter typically is *sql.DB, which implements the TxProvider interface.
+func NewProcessor(txProvider TxProvider, eventReader store.EventReader, checkpointStore store.CheckpointStore, config *ProcessorConfig) *Processor {
 	return &Processor{
-		config:      config,
-		eventReader: eventReader,
-		db:          db,
+		config:          config,
+		eventReader:     eventReader,
+		checkpointStore: checkpointStore,
+		txProvider:      txProvider,
 	}
 }
 
@@ -254,7 +261,7 @@ func (p *Processor) shouldProcessEvent(event es.PersistedEvent, aggregateTypeFil
 }
 
 func (p *Processor) processBatch(ctx context.Context, projection Projection, aggregateTypeFilter map[string]bool) error {
-	tx, err := p.db.BeginTx(ctx, nil)
+	tx, err := p.txProvider.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -264,7 +271,7 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection, agg
 	}()
 
 	// Get current checkpoint
-	checkpoint, err := p.getCheckpoint(ctx, tx, projection.Name())
+	checkpoint, err := p.checkpointStore.GetCheckpoint(ctx, tx, projection.Name())
 	if err != nil {
 		return fmt.Errorf("failed to get checkpoint: %w", err)
 	}
@@ -325,7 +332,7 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection, agg
 
 	// Update checkpoint
 	if lastPosition > 0 {
-		err = p.updateCheckpoint(ctx, tx, projection.Name(), lastPosition)
+		err = p.checkpointStore.UpdateCheckpoint(ctx, tx, projection.Name(), lastPosition)
 		if err != nil {
 			return fmt.Errorf("failed to update checkpoint: %w", err)
 		}
@@ -344,36 +351,4 @@ func (p *Processor) processBatch(ctx context.Context, projection Projection, agg
 	}
 
 	return nil
-}
-
-func (p *Processor) getCheckpoint(ctx context.Context, tx es.DBTX, projectionName string) (int64, error) {
-	query := fmt.Sprintf(`
-		SELECT last_global_position 
-		FROM %s 
-		WHERE projection_name = $1
-	`, p.config.CheckpointsTable)
-
-	var checkpoint int64
-	err := tx.QueryRowContext(ctx, query, projectionName).Scan(&checkpoint)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return 0, nil
-		}
-		return 0, err
-	}
-	return checkpoint, nil
-}
-
-func (p *Processor) updateCheckpoint(ctx context.Context, tx es.DBTX, projectionName string, position int64) error {
-	query := fmt.Sprintf(`
-		INSERT INTO %s (projection_name, last_global_position, updated_at)
-		VALUES ($1, $2, NOW())
-		ON CONFLICT (projection_name)
-		DO UPDATE SET 
-			last_global_position = EXCLUDED.last_global_position,
-			updated_at = EXCLUDED.updated_at
-	`, p.config.CheckpointsTable)
-
-	_, err := tx.ExecContext(ctx, query, projectionName, position)
-	return err
 }

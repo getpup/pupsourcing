@@ -1,117 +1,116 @@
 package runner
 
 import (
-"context"
-"errors"
-"sync/atomic"
-"testing"
+	"context"
+	"errors"
+	"sync/atomic"
+	"testing"
 
-
-"github.com/getpup/pupsourcing/es"
-"github.com/getpup/pupsourcing/es/projection"
+	"github.com/getpup/pupsourcing/es"
+	"github.com/getpup/pupsourcing/es/projection"
 )
 
 // mockProjection implements projection.Projection for testing
 type mockProjection struct {
-name        string
-handleCount int32
-shouldFail  bool
+	name        string
+	handleCount int32
+	shouldFail  bool
 }
 
 func (m *mockProjection) Name() string {
-return m.name
+	return m.name
 }
 
 //nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
 func (m *mockProjection) Handle(_ context.Context, _ es.PersistedEvent) error {
-atomic.AddInt32(&m.handleCount, 1)
+	atomic.AddInt32(&m.handleCount, 1)
 
-if m.shouldFail {
-return errors.New("mock projection error")
-}
-return nil
+	if m.shouldFail {
+		return errors.New("mock projection error")
+	}
+	return nil
 }
 
 // mockProcessor implements projection.ProcessorRunner for testing
 type mockProcessor struct {
-runCalled   bool
-shouldFail  bool
-projName    string
+	runCalled  bool
+	shouldFail bool
+	projName   string
 }
 
 func (m *mockProcessor) Run(_ context.Context, proj projection.Projection) error {
-m.runCalled = true
-m.projName = proj.Name()
+	m.runCalled = true
+	m.projName = proj.Name()
 
-if m.shouldFail {
-return errors.New("mock processor error")
-}
-return nil
+	if m.shouldFail {
+		return errors.New("mock processor error")
+	}
+	return nil
 }
 
 func TestRunner_Run_NoProjections(t *testing.T) {
-runner := New()
+	runner := New()
 
-err := runner.Run(context.Background(), []ProjectionRunner{})
-if !errors.Is(err, ErrNoProjections) {
-t.Errorf("Expected ErrNoProjections, got %v", err)
-}
+	err := runner.Run(context.Background(), []ProjectionRunner{})
+	if !errors.Is(err, ErrNoProjections) {
+		t.Errorf("Expected ErrNoProjections, got %v", err)
+	}
 }
 
 func TestRunner_Run_NilProjection(t *testing.T) {
-runner := New()
+	runner := New()
 
-runners := []ProjectionRunner{
-{
-Projection: nil,
-Processor:  &mockProcessor{},
-},
-}
+	runners := []ProjectionRunner{
+		{
+			Projection: nil,
+			Processor:  &mockProcessor{},
+		},
+	}
 
-err := runner.Run(context.Background(), runners)
-if err == nil || err.Error() != "projection at index 0 is nil" {
-t.Errorf("Expected nil projection error, got %v", err)
-}
+	err := runner.Run(context.Background(), runners)
+	if err == nil || err.Error() != "projection at index 0 is nil" {
+		t.Errorf("Expected nil projection error, got %v", err)
+	}
 }
 
 func TestRunner_Run_NilProcessor(t *testing.T) {
-runner := New()
+	runner := New()
 
-runners := []ProjectionRunner{
-{
-Projection: &mockProjection{name: "test"},
-Processor:  nil,
-},
-}
+	runners := []ProjectionRunner{
+		{
+			Projection: &mockProjection{name: "test"},
+			Processor:  nil,
+		},
+	}
 
-err := runner.Run(context.Background(), runners)
-if err == nil || err.Error() != "processor at index 0 is nil" {
-t.Errorf("Expected nil processor error, got %v", err)
-}
+	err := runner.Run(context.Background(), runners)
+	if err == nil || err.Error() != "processor at index 0 is nil" {
+		t.Errorf("Expected nil processor error, got %v", err)
+	}
 }
 
 func TestRunner_Run_ContextCancellation(t *testing.T) {
-runner := New()
+	runner := New()
 
-ctx, cancel := context.WithCancel(context.Background())
-cancel() // Cancel immediately
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
 
-runners := []ProjectionRunner{
-{
-Projection: &mockProjection{name: "test"},
-Processor:  &mockProcessor{},
-},
-}
+	runners := []ProjectionRunner{
+		{
+			Projection: &mockProjection{name: "test"},
+			Processor:  &mockProcessor{},
+		},
+	}
 
-err := runner.Run(ctx, runners)
-if !errors.Is(err, context.Canceled) {
-t.Errorf("Expected context.Canceled, got %v", err)
-}
+	err := runner.Run(ctx, runners)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Expected context.Canceled, got %v", err)
+	}
 }
 
 func TestNew(t *testing.T) {
-runner := New()
-if runner == nil {
-t.Fatal("New returned nil")
-}
+	runner := New()
+	if runner == nil {
+		t.Fatal("New returned nil")
+	}
 }

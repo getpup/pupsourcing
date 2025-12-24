@@ -5,7 +5,6 @@ package runner
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"sync"
@@ -42,16 +41,30 @@ type ProjectionConfig struct {
 //	    {Projection: &MyProjection{}, ProcessorConfig: config1},
 //	    {Projection: &MyOtherProjection{}, ProcessorConfig: config2},
 //	})
+// Runner orchestrates multiple projections, optionally with partitioning.
+// It is designed to be explicit and deterministic, with no magic auto-discovery.
+// The runner works with context cancellation and remains transaction-agnostic.
+//
+// Example:
+//
+//	runner := runner.New(db, eventReader, checkpointStore)
+//	err := runner.Run(ctx, []ProjectionConfig{
+//	    {Projection: &MyProjection{}, ProcessorConfig: config1},
+//	    {Projection: &MyOtherProjection{}, ProcessorConfig: config2},
+//	})
 type Runner struct {
-	db          *sql.DB
-	eventReader store.EventReader
+	txProvider      projection.TxProvider
+	eventReader     store.EventReader
+	checkpointStore store.CheckpointStore
 }
 
 // New creates a new projection runner.
-func New(db *sql.DB, eventReader store.EventReader) *Runner {
+// The txProvider is typically *sql.DB, which implements the TxProvider interface.
+func New(txProvider projection.TxProvider, eventReader store.EventReader, checkpointStore store.CheckpointStore) *Runner {
 	return &Runner{
-		db:          db,
-		eventReader: eventReader,
+		txProvider:      txProvider,
+		eventReader:     eventReader,
+		checkpointStore: checkpointStore,
 	}
 }
 
@@ -98,7 +111,7 @@ func (r *Runner) Run(ctx context.Context, configs []ProjectionConfig) error {
 		go func(cfg ProjectionConfig) {
 			defer wg.Done()
 
-			processor := projection.NewProcessor(r.db, r.eventReader, &cfg.ProcessorConfig)
+			processor := projection.NewProcessor(r.txProvider, r.eventReader, r.checkpointStore, &cfg.ProcessorConfig)
 			err := processor.Run(ctx, cfg.Projection)
 
 			// Only report errors that aren't from context cancellation
@@ -154,10 +167,13 @@ func (p *partitionedProjection) Name() string {
 //
 // This creates 4 workers processing different subsets of events in parallel.
 // Events for the same aggregate always go to the same partition, maintaining ordering.
+//
+// The txProvider is typically *sql.DB, which implements the TxProvider interface.
 func RunProjectionPartitions(
 	ctx context.Context,
-	db *sql.DB,
+	txProvider projection.TxProvider,
 	eventReader store.EventReader,
+	checkpointStore store.CheckpointStore,
 	proj projection.Projection,
 	totalPartitions int,
 ) error {
@@ -183,7 +199,7 @@ func RunProjectionPartitions(
 		}
 	}
 
-	runner := New(db, eventReader)
+	runner := New(txProvider, eventReader, checkpointStore)
 	return runner.Run(ctx, configs)
 }
 
@@ -193,7 +209,7 @@ func RunProjectionPartitions(
 //
 // Example:
 //
-//	err := runner.RunMultipleProjections(ctx, db, store, []runner.ProjectionConfig{
+//	err := runner.RunMultipleProjections(ctx, db, store, checkpointStore, []runner.ProjectionConfig{
 //	    {
 //	        Projection: &FastProjection{},
 //	        ProcessorConfig: projection.ProcessorConfig{
@@ -211,12 +227,15 @@ func RunProjectionPartitions(
 //	        },
 //	    },
 //	})
+//
+// The txProvider is typically *sql.DB, which implements the TxProvider interface.
 func RunMultipleProjections(
 	ctx context.Context,
-	db *sql.DB,
+	txProvider projection.TxProvider,
 	eventReader store.EventReader,
+	checkpointStore store.CheckpointStore,
 	configs []ProjectionConfig,
 ) error {
-	runner := New(db, eventReader)
+	runner := New(txProvider, eventReader, checkpointStore)
 	return runner.Run(ctx, configs)
 }

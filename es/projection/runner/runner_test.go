@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -30,6 +31,40 @@ func (m *mockEventReader) ReadEvents(_ context.Context, _ es.DBTX, fromPosition 
 		}
 	}
 	return result, nil
+}
+
+// mockCheckpointStore implements store.CheckpointStore for testing
+type mockCheckpointStore struct {
+	mu          sync.Mutex
+	checkpoints map[string]int64
+}
+
+func newMockCheckpointStore() *mockCheckpointStore {
+	return &mockCheckpointStore{
+		checkpoints: make(map[string]int64),
+	}
+}
+
+func (m *mockCheckpointStore) GetCheckpoint(_ context.Context, _ es.DBTX, projectionName string) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.checkpoints[projectionName], nil
+}
+
+func (m *mockCheckpointStore) UpdateCheckpoint(_ context.Context, _ es.DBTX, projectionName string, position int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.checkpoints[projectionName] = position
+	return nil
+}
+
+// mockTxProvider implements projection.TxProvider for testing
+type mockTxProvider struct{}
+
+func (m *mockTxProvider) BeginTx(_ context.Context, _ *sql.TxOptions) (*sql.Tx, error) {
+	// For unit tests, we don't actually need a real transaction
+	// The tests mock out the checkpoint store and event reader
+	return nil, errors.New("transaction not supported in mock")
 }
 
 // mockProjection implements projection.Projection for testing
@@ -61,9 +96,10 @@ func (m *mockProjection) Handle(_ context.Context, _ es.DBTX, event es.Persisted
 }
 
 func TestRunner_Run_NoProjections(t *testing.T) {
-	db := &sql.DB{}
+	txProvider := &mockTxProvider{}
 	eventReader := &mockEventReader{}
-	runner := New(db, eventReader)
+	checkpointStore := newMockCheckpointStore()
+	runner := New(txProvider, eventReader, checkpointStore)
 
 	err := runner.Run(context.Background(), []ProjectionConfig{})
 	if !errors.Is(err, ErrNoProjections) {
@@ -72,9 +108,10 @@ func TestRunner_Run_NoProjections(t *testing.T) {
 }
 
 func TestRunner_Run_NilProjection(t *testing.T) {
-	db := &sql.DB{}
+	txProvider := &mockTxProvider{}
 	eventReader := &mockEventReader{}
-	runner := New(db, eventReader)
+	checkpointStore := newMockCheckpointStore()
+	runner := New(txProvider, eventReader, checkpointStore)
 
 	configs := []ProjectionConfig{
 		{
@@ -90,9 +127,10 @@ func TestRunner_Run_NilProjection(t *testing.T) {
 }
 
 func TestRunner_Run_InvalidPartitionKey(t *testing.T) {
-	db := &sql.DB{}
+	txProvider := &mockTxProvider{}
 	eventReader := &mockEventReader{}
-	runner := New(db, eventReader)
+	checkpointStore := newMockCheckpointStore()
+	runner := New(txProvider, eventReader, checkpointStore)
 
 	config := projection.DefaultProcessorConfig()
 	config.PartitionKey = -1
@@ -111,9 +149,10 @@ func TestRunner_Run_InvalidPartitionKey(t *testing.T) {
 }
 
 func TestRunner_Run_InvalidTotalPartitions(t *testing.T) {
-	db := &sql.DB{}
+	txProvider := &mockTxProvider{}
 	eventReader := &mockEventReader{}
-	runner := New(db, eventReader)
+	checkpointStore := newMockCheckpointStore()
+	runner := New(txProvider, eventReader, checkpointStore)
 
 	config := projection.DefaultProcessorConfig()
 	config.TotalPartitions = 0
@@ -132,9 +171,10 @@ func TestRunner_Run_InvalidTotalPartitions(t *testing.T) {
 }
 
 func TestRunner_Run_PartitionKeyOutOfRange(t *testing.T) {
-	db := &sql.DB{}
+	txProvider := &mockTxProvider{}
 	eventReader := &mockEventReader{}
-	runner := New(db, eventReader)
+	checkpointStore := newMockCheckpointStore()
+	runner := New(txProvider, eventReader, checkpointStore)
 
 	config := projection.DefaultProcessorConfig()
 	config.PartitionKey = 4
@@ -154,9 +194,10 @@ func TestRunner_Run_PartitionKeyOutOfRange(t *testing.T) {
 }
 
 func TestRunner_Run_ContextCancellation(t *testing.T) {
-	db := &sql.DB{}
+	txProvider := &mockTxProvider{}
 	eventReader := &mockEventReader{}
-	runner := New(db, eventReader)
+	checkpointStore := newMockCheckpointStore()
+	runner := New(txProvider, eventReader, checkpointStore)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
@@ -175,16 +216,17 @@ func TestRunner_Run_ContextCancellation(t *testing.T) {
 }
 
 func TestRunProjectionPartitions_InvalidTotalPartitions(t *testing.T) {
-	db := &sql.DB{}
+	txProvider := &mockTxProvider{}
 	eventReader := &mockEventReader{}
+	checkpointStore := newMockCheckpointStore()
 	proj := &mockProjection{name: "test"}
 
-	err := RunProjectionPartitions(context.Background(), db, eventReader, proj, 0)
+	err := RunProjectionPartitions(context.Background(), txProvider, eventReader, checkpointStore, proj, 0)
 	if !errors.Is(err, ErrInvalidPartitionConfig) {
 		t.Errorf("Expected ErrInvalidPartitionConfig, got %v", err)
 	}
 
-	err = RunProjectionPartitions(context.Background(), db, eventReader, proj, -1)
+	err = RunProjectionPartitions(context.Background(), txProvider, eventReader, checkpointStore, proj, -1)
 	if !errors.Is(err, ErrInvalidPartitionConfig) {
 		t.Errorf("Expected ErrInvalidPartitionConfig, got %v", err)
 	}
@@ -195,8 +237,9 @@ func TestRunProjectionPartitions_CreatesCorrectConfigs(t *testing.T) {
 	// We can't easily test the actual running without a real database,
 	// but we can test the configuration logic by checking for validation errors
 
-	db := &sql.DB{}
+	txProvider := &mockTxProvider{}
 	eventReader := &mockEventReader{}
+	checkpointStore := newMockCheckpointStore()
 	proj := &mockProjection{name: "test"}
 
 	// Create a context that we'll cancel immediately to avoid actual processing
@@ -204,7 +247,7 @@ func TestRunProjectionPartitions_CreatesCorrectConfigs(t *testing.T) {
 	cancel()
 
 	// Should create 4 partition configs without validation errors
-	err := RunProjectionPartitions(ctx, db, eventReader, proj, 4)
+	err := RunProjectionPartitions(ctx, txProvider, eventReader, checkpointStore, proj, 4)
 	// We expect context.Canceled, not a validation error
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Expected context.Canceled, got %v", err)
@@ -212,8 +255,9 @@ func TestRunProjectionPartitions_CreatesCorrectConfigs(t *testing.T) {
 }
 
 func TestRunMultipleProjections_CallsRunnerRun(t *testing.T) {
-	db := &sql.DB{}
+	txProvider := &mockTxProvider{}
 	eventReader := &mockEventReader{}
+	checkpointStore := newMockCheckpointStore()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -225,25 +269,29 @@ func TestRunMultipleProjections_CallsRunnerRun(t *testing.T) {
 		},
 	}
 
-	err := RunMultipleProjections(ctx, db, eventReader, configs)
+	err := RunMultipleProjections(ctx, txProvider, eventReader, checkpointStore, configs)
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Expected context.Canceled, got %v", err)
 	}
 }
 
 func TestNew(t *testing.T) {
-	db := &sql.DB{}
+	txProvider := &mockTxProvider{}
 	eventReader := &mockEventReader{}
 
-	runner := New(db, eventReader)
+	checkpointStore := newMockCheckpointStore()
+	runner := New(txProvider, eventReader, checkpointStore)
 	if runner == nil {
 		t.Fatal("New returned nil")
 	}
-	if runner.db != db {
-		t.Error("Runner db not set correctly")
+	if runner.txProvider != txProvider {
+		t.Error("Runner txProvider not set correctly")
 	}
 	if runner.eventReader != eventReader {
 		t.Error("Runner eventReader not set correctly")
+	}
+	if runner.checkpointStore != checkpointStore {
+		t.Error("Runner checkpointStore not set correctly")
 	}
 }
 

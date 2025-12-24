@@ -467,3 +467,36 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 		Events:        events,
 	}, nil
 }
+
+// GetCheckpoint implements store.CheckpointStore.
+func (s *Store) GetCheckpoint(ctx context.Context, tx es.DBTX, projectionName string) (int64, error) {
+	query := fmt.Sprintf(`
+		SELECT last_global_position 
+		FROM %s 
+		WHERE projection_name = ?
+	`, s.config.CheckpointsTable)
+
+	var checkpoint int64
+	err := tx.QueryRowContext(ctx, query, projectionName).Scan(&checkpoint)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return checkpoint, nil
+}
+
+// UpdateCheckpoint implements store.CheckpointStore.
+func (s *Store) UpdateCheckpoint(ctx context.Context, tx es.DBTX, projectionName string, position int64) error {
+	query := fmt.Sprintf(`
+		INSERT INTO %s (projection_name, last_global_position, updated_at)
+		VALUES (?, ?, NOW())
+		ON DUPLICATE KEY UPDATE 
+			last_global_position = VALUES(last_global_position),
+			updated_at = VALUES(updated_at)
+	`, s.config.CheckpointsTable)
+
+	_, err := tx.ExecContext(ctx, query, projectionName, position)
+	return err
+}

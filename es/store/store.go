@@ -80,3 +80,20 @@ type AggregateStreamReader interface {
 	// Use stream.IsEmpty() to check if any events were found.
 	ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID string, fromVersion, toVersion *int64) (es.Stream, error)
 }
+
+// CheckpointStore defines the interface for managing projection checkpoints.
+// Checkpoints track the last processed event position for each projection,
+// enabling projections to resume processing from where they left off.
+// This interface allows adapters to implement checkpoint persistence
+// using their native storage mechanisms.
+type CheckpointStore interface {
+	// GetCheckpoint retrieves the last processed global position for a projection.
+	// Returns 0 if no checkpoint exists for the projection (indicating it should start from the beginning).
+	// The checkpoint is read within the provided transaction for consistency.
+	GetCheckpoint(ctx context.Context, tx es.DBTX, projectionName string) (int64, error)
+
+	// UpdateCheckpoint updates the checkpoint for a projection to the given position.
+	// This operation is performed within the provided transaction to ensure atomicity
+	// with event processing. If a checkpoint doesn't exist, it will be created.
+	UpdateCheckpoint(ctx context.Context, tx es.DBTX, projectionName string, position int64) error
+}

@@ -66,7 +66,7 @@ func (p *UserCountProjection) AggregateTypes() []string {
     return []string{"User"}
 }
 
-func (p *UserCountProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *UserCountProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
     // Only User events arrive here - no need to check EventType for other aggregates
     switch event.EventType {
     case "UserCreated":
@@ -113,7 +113,7 @@ func (p *WatermillPublisher) Name() string {
 
 // No AggregateTypes() method - receives ALL events
 
-func (p *WatermillPublisher) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *WatermillPublisher) Handle(ctx context.Context, event es.PersistedEvent) error {
     // Receives all events regardless of aggregate type
     msg := message.NewMessage(event.EventID.String(), event.Payload)
     msg.Metadata.Set("aggregate_type", event.AggregateType)
@@ -140,7 +140,7 @@ import (
 
 proj := &UserCountProjection{db: db}  // or &WatermillPublisher{...}
 config := projection.DefaultProcessorConfig()
-processor := projection.NewProcessor(db, store, &config)
+processor := postgres.NewProcessor(db, store, &config)
 
 // Run until context is cancelled
 ctx, cancel := context.WithCancel(context.Background())
@@ -211,7 +211,7 @@ config := projection.DefaultProcessorConfig()
 config.PartitionKey = 0      // This worker (0-indexed)
 config.TotalPartitions = 4   // Total worker count
 
-processor := projection.NewProcessor(db, store, &config)
+processor := postgres.NewProcessor(db, store, &config)
 ```
 
 **Characteristics:**
@@ -269,7 +269,7 @@ type SafeProjection struct {
     count int64
 }
 
-func (p *SafeProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *SafeProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
     atomic.AddInt64(&p.count, 1)  // Thread-safe
     return nil
 }
@@ -277,7 +277,7 @@ func (p *SafeProjection) Handle(ctx context.Context, tx es.DBTX, event es.Persis
 // ✅ Good: Stateless (only updates database)
 type StatelessProjection struct{}
 
-func (p *StatelessProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *StatelessProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
     _, err := tx.ExecContext(ctx, "INSERT INTO read_model ...")  // Database handles concurrency
     return err
 }
@@ -287,7 +287,7 @@ type UnsafeProjection struct {
     count int  // Race condition!
 }
 
-func (p *UnsafeProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *UnsafeProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
     p.count++  // NOT thread-safe!
     return nil
 }
@@ -506,12 +506,12 @@ Process recent events quickly, older events more slowly:
 // Hot path: Recent events (small batches, low latency)
 hotConfig := projection.DefaultProcessorConfig()
 hotConfig.BatchSize = 10
-hotProcessor := projection.NewProcessor(db, store, &hotConfig)
+hotProcessor := postgres.NewProcessor(db, store, &hotConfig)
 
 // Cold path: Historical events (large batches, high throughput)
 coldConfig := projection.DefaultProcessorConfig()
 coldConfig.BatchSize = 1000
-coldProcessor := projection.NewProcessor(db, store, &coldConfig)
+coldProcessor := postgres.NewProcessor(db, store, &coldConfig)
 ```
 
 ### Pattern 4: Idempotent Projections
@@ -565,7 +565,7 @@ recentEvents, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &sn
 ### Error Handling
 
 ```go
-func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *MyProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
     // Transient errors: return error to retry
     if err := someOperation(); err != nil {
         return fmt.Errorf("transient error: %w", err)

@@ -93,7 +93,7 @@ func main() {
     }()
     
     // Start processing
-    processor := projection.NewProcessor(db, store, store, &config)
+    processor := postgres.NewProcessor(db, store, &config)
     if err := processor.Run(ctx, userProjection); err != nil {
         log.Fatalf("Projection failed: %v", err)
     }
@@ -555,8 +555,8 @@ type InstrumentedProjection struct {
     inner projection.Projection
 }
 
-func (p *InstrumentedProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
-    err := p.inner.Handle(ctx, tx, event)
+func (p *InstrumentedProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
+    err := p.inner.Handle(ctx, event)
     if err != nil {
         projectionErrors.WithLabelValues(p.inner.Name()).Inc()
         return err

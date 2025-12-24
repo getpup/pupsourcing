@@ -388,8 +388,9 @@ func (p *UserReadModelProjection) AggregateTypes() []string {
     return []string{"User"}
 }
 
-func (p *UserReadModelProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *UserReadModelProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
     // Only User events arrive here
+    // Projection manages its own database operations
     switch event.EventType {
     case "UserCreated":
         // Update read model
@@ -402,14 +403,16 @@ func (p *UserReadModelProjection) Handle(ctx context.Context, tx es.DBTX, event 
 
 ### projection.Projection
 
-Interface for event projection handlers. Implement this interface for global projections that need all events.
+Interface for event projection handlers. Projections are storage-agnostic and can write to any destination (SQL, NoSQL, message brokers, search engines, etc.).
 
 ```go
 type Projection interface {
     Name() string
-    Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error
+    Handle(ctx context.Context, event es.PersistedEvent) error
 }
 ```
+
+**Breaking Change (v1.2.0):** Removed `tx es.DBTX` parameter from `Handle()` method. Projections now manage their own persistence connections.
 
 #### Example: Global Integration Publisher
 
@@ -424,10 +427,32 @@ func (p *WatermillPublisher) Name() string {
 
 // No AggregateTypes() method - receives ALL events
 
-func (p *WatermillPublisher) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *WatermillPublisher) Handle(ctx context.Context, event es.PersistedEvent) error {
     // Receives all events - publish to message broker
+    // Projection manages its own persistence (no transaction parameter)
     msg := message.NewMessage(event.EventID.String(), event.Payload)
     return p.publisher.Publish(event.EventType, msg)
+}
+```
+
+#### Example: SQL Read Model Projection
+
+```go
+type UserReadModelProjection struct {
+    db *sql.DB  // Projection manages its own database connection
+}
+
+func (p *UserReadModelProjection) Name() string {
+    return "user_read_model"
+}
+
+func (p *UserReadModelProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
+    // Projection manages its own database operations
+    if event.EventType == "UserCreated" {
+        _, err := p.db.ExecContext(ctx, "INSERT INTO users_read_model ...")
+        return err
+    }
+    return nil
 }
 ```
 
@@ -443,10 +468,10 @@ func (p *MyProjection) Name() string {
 
 #### Handle
 
-Processes a single event.
+Processes a single event. Projections manage their own persistence.
 
 ```go
-func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *MyProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
     // Process event
     return nil
 }
@@ -454,15 +479,48 @@ func (p *MyProjection) Handle(ctx context.Context, tx es.DBTX, event es.Persiste
 
 **Parameters:**
 - `ctx`: Context for cancellation
-- `tx`: Database transaction (same as checkpoint update)
-- `event`: Event to process (passed by pointer to avoid copying)
+- `event`: Event to process (passed by value to enforce immutability)
 
 **Returns:**
 - `error`: Return error to stop projection processing
 
-**Important:** Make projections idempotent - events may be reprocessed on crash recovery.
+**Important:** 
+- Make projections idempotent - events may be reprocessed on crash recovery
+- Projections manage their own persistence connections (database, message broker, etc.)
+- For SQL projections, consider managing transactions within your Handle implementation
 
-### projection.Processor
+### postgres.Processor
+
+PostgreSQL-specific processor for running projections. Manages SQL transactions and checkpointing internally.
+
+**Breaking Change (v1.2.0):** Moved from `projection.Processor` to adapter-specific implementations. Each adapter (postgres, mysql, sqlite) has its own processor.
+
+#### NewProcessor
+
+Creates a new PostgreSQL projection processor.
+
+```go
+func NewProcessor(db *sql.DB, store *postgres.Store, config *projection.ProcessorConfig) *Processor
+```
+
+**Parameters:**
+- `db`: PostgreSQL database connection
+- `store`: PostgreSQL store (implements EventReader and CheckpointStore)
+- `config`: Processor configuration (passed by pointer)
+
+**Returns:**
+- `*Processor`: Processor instance
+
+**Example:**
+```go
+store := postgres.NewStore(postgres.DefaultStoreConfig())
+config := projection.DefaultProcessorConfig()
+processor := postgres.NewProcessor(db, store, &config)
+```
+
+### projection.Processor (Legacy)
+
+**Deprecated in v1.2.0** - Use adapter-specific processors instead:
 
 Processes events for a projection.
 
@@ -512,7 +570,7 @@ func (p *Processor) Run(ctx context.Context, projection Projection) error
 ```go
 store := postgres.NewStore(postgres.DefaultStoreConfig())
 config := projection.DefaultProcessorConfig()
-processor := projection.NewProcessor(db, store, store, &config)
+processor := postgres.NewProcessor(db, store, &config)
 
 ctx, cancel := context.WithCancel(context.Background())
 defer cancel()

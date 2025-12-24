@@ -182,7 +182,7 @@ func (p *UserCountProjection) AggregateTypes() []string {
     return []string{"User"}  // Only receives User events
 }
 
-func (p *UserCountProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
+func (p *UserCountProjection) Handle(_ context.Context, event es.PersistedEvent) error {
     if event.EventType == "UserCreated" {
         p.count++
         fmt.Printf("User count: %d\n", p.count)
@@ -196,7 +196,10 @@ func (p *UserCountProjection) Handle(_ context.Context, _ es.DBTX, event es.Pers
 ```go
 proj := &UserCountProjection{}
 config := projection.DefaultProcessorConfig()
-processor := projection.NewProcessor(db, store, &config)
+
+// Use adapter-specific processor
+store := postgres.NewStore(postgres.DefaultStoreConfig())
+processor := postgres.NewProcessor(db, store, &config)
 
 ctx, cancel := context.WithCancel(context.Background())
 defer cancel()

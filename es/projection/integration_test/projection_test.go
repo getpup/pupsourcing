@@ -202,7 +202,7 @@ func TestProjection_BasicProcessing(t *testing.T) {
 	err = processor.Run(ctx2, proj)
 	// Accept no error, projection stopped, deadline exceeded (possibly wrapped without %w)
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, projection.ErrProjectionStopped) || strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, postgres.ErrProjectionStopped) || strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
 			// acceptable
 		} else {
 			t.Fatalf("Unexpected error from processor: %v, %T", err, err)
@@ -327,7 +327,7 @@ func TestProjection_ErrorHandling(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error from projection processor")
 	}
-	if err != nil && err != projection.ErrProjectionStopped && err != context.DeadlineExceeded {
+	if err != nil && err != postgres.ErrProjectionStopped && err != context.DeadlineExceeded {
 		// Should be wrapped ErrProjectionStopped
 		t.Logf("Got error: %v", err)
 	}

@@ -43,7 +43,7 @@ func (p *SimpleProjection) Name() string {
 }
 
 //nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
-func (p *SimpleProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
+func (p *SimpleProjection) Handle(_ context.Context, event es.PersistedEvent) error {
 	if event.EventType == "UserCreated" {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
@@ -89,7 +89,7 @@ func main() {
 
 	// Create processor with default configuration
 	config := projection.DefaultProcessorConfig()
-	processor := projection.NewProcessor(db, store, store, &config)
+	processor := postgres.NewProcessor(db, store, &config)
 
 	// Set up graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)

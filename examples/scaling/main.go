@@ -48,7 +48,7 @@ func (p *ScalableProjection) Name() string {
 }
 
 //nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
-func (p *ScalableProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
+func (p *ScalableProjection) Handle(_ context.Context, event es.PersistedEvent) error {
 	if event.EventType == "UserCreated" {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
@@ -126,7 +126,7 @@ func main() {
 	config.PartitionKey = *workerID
 	config.TotalPartitions = *totalWorkers
 
-	processor := projection.NewProcessor(db, store, store, &config)
+	processor := postgres.NewProcessor(db, store, &config)
 
 	// Graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)

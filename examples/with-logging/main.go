@@ -68,7 +68,7 @@ func (p *UserProjection) Name() string {
 }
 
 //nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
-func (p *UserProjection) Handle(_ context.Context, _ es.DBTX, event es.PersistedEvent) error {
+func (p *UserProjection) Handle(_ context.Context, event es.PersistedEvent) error {
 	if event.EventType == "UserCreated" {
 		var payload UserCreated
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
@@ -180,7 +180,7 @@ func main() {
 
 	processorConfig := projection.DefaultProcessorConfig()
 	processorConfig.Logger = projectionLogger
-	processor := projection.NewProcessor(db, store, store, &processorConfig)
+	processor := postgres.NewProcessor(db, store, &processorConfig)
 
 	// Run projection for a short time
 	ctx2, cancel := context.WithTimeout(ctx, 2*time.Second)

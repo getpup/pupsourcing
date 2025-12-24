@@ -117,7 +117,7 @@ func main() {
 	log.Println("Each worker handles events for different aggregate IDs")
 	log.Println("Press Ctrl+C to stop")
 
-	err = runner.RunProjectionPartitions(ctx, db, store, proj, *numWorkers)
+	err = runner.RunProjectionPartitions(ctx, db, store, store, proj, *numWorkers)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		//nolint:gocritic // it's just an example code
 		log.Fatalf("Runner error: %v", err)

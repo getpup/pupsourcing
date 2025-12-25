@@ -104,7 +104,8 @@ func TestAppendEvents(t *testing.T) {
 	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "TestEventCreated",
@@ -114,7 +115,8 @@ func TestAppendEvents(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "TestEventUpdated",
@@ -236,7 +238,8 @@ func TestReadEvents(t *testing.T) {
 
 	events := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID1,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -246,7 +249,8 @@ func TestReadEvents(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID2,
 			EventID:       uuid.New(),
 			EventType:     "Event2",
@@ -300,7 +304,8 @@ func TestReadAggregateStream_FullStream(t *testing.T) {
 	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -310,7 +315,8 @@ func TestReadAggregateStream_FullStream(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event2",
@@ -320,7 +326,8 @@ func TestReadAggregateStream_FullStream(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event3",
@@ -342,7 +349,7 @@ func TestReadAggregateStream_FullStream(t *testing.T) {
 	tx2, _ := db.BeginTx(ctx, nil)
 	defer tx2.Rollback()
 
-	stream, err := store.ReadAggregateStream(ctx, tx2, "TestAggregate", aggregateID, nil, nil)
+	stream, err := store.ReadAggregateStream(ctx, tx2, "TestContext", "TestAggregate", aggregateID, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to read aggregate stream: %v", err)
 	}
@@ -379,7 +386,8 @@ func TestReadAggregateStream_WithFromVersion(t *testing.T) {
 	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -389,7 +397,8 @@ func TestReadAggregateStream_WithFromVersion(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event2",
@@ -399,7 +408,8 @@ func TestReadAggregateStream_WithFromVersion(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event3",
@@ -422,7 +432,7 @@ func TestReadAggregateStream_WithFromVersion(t *testing.T) {
 	defer tx2.Rollback()
 
 	fromVersion := int64(2)
-	stream, err := store.ReadAggregateStream(ctx, tx2, "TestAggregate", aggregateID, &fromVersion, nil)
+	stream, err := store.ReadAggregateStream(ctx, tx2, "TestContext", "TestAggregate", aggregateID, &fromVersion, nil)
 	if err != nil {
 		t.Fatalf("Failed to read aggregate stream: %v", err)
 	}
@@ -454,7 +464,8 @@ func TestAggregateVersionTracking(t *testing.T) {
 	// Append first batch of events
 	events1 := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -464,7 +475,8 @@ func TestAggregateVersionTracking(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event2",
@@ -501,7 +513,8 @@ func TestAggregateVersionTracking(t *testing.T) {
 	// Append second batch of events
 	events2 := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event3",

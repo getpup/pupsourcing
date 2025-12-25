@@ -121,7 +121,8 @@ func TestAppendEvents(t *testing.T) {
 	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "TestEventCreated",
@@ -131,7 +132,8 @@ func TestAppendEvents(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "TestEventUpdated",
@@ -274,7 +276,8 @@ func TestReadEvents(t *testing.T) {
 
 	events := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID1,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -284,7 +287,8 @@ func TestReadEvents(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID2,
 			EventID:       uuid.New(),
 			EventType:     "Event2",
@@ -405,7 +409,8 @@ func TestAggregateVersionTracking(t *testing.T) {
 	// Append first batch of events
 	events1 := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -415,7 +420,8 @@ func TestAggregateVersionTracking(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event2",
@@ -452,7 +458,8 @@ func TestAggregateVersionTracking(t *testing.T) {
 	// Append second batch of events
 	events2 := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event3",
@@ -536,7 +543,8 @@ func TestAggregateVersionTracking_MultipleAggregates(t *testing.T) {
 
 	events1 := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregate1,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -549,7 +557,8 @@ func TestAggregateVersionTracking_MultipleAggregates(t *testing.T) {
 
 	events2 := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregate2,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -630,7 +639,8 @@ func TestReadAggregateStream_FullStream(t *testing.T) {
 	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -640,7 +650,8 @@ func TestReadAggregateStream_FullStream(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event2",
@@ -650,7 +661,8 @@ func TestReadAggregateStream_FullStream(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event3",
@@ -672,7 +684,7 @@ func TestReadAggregateStream_FullStream(t *testing.T) {
 	tx2, _ := db.BeginTx(ctx, nil)
 	defer tx2.Rollback()
 
-	stream, err := store.ReadAggregateStream(ctx, tx2, "TestAggregate", aggregateID, nil, nil)
+	stream, err := store.ReadAggregateStream(ctx, tx2, "TestContext", "TestAggregate", aggregateID, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to read aggregate stream: %v", err)
 	}
@@ -714,7 +726,8 @@ func TestReadAggregateStream_WithFromVersion(t *testing.T) {
 	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -724,7 +737,8 @@ func TestReadAggregateStream_WithFromVersion(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event2",
@@ -734,7 +748,8 @@ func TestReadAggregateStream_WithFromVersion(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event3",
@@ -757,7 +772,7 @@ func TestReadAggregateStream_WithFromVersion(t *testing.T) {
 	defer tx2.Rollback()
 
 	fromVersion := int64(2)
-	stream, err := store.ReadAggregateStream(ctx, tx2, "TestAggregate", aggregateID, &fromVersion, nil)
+	stream, err := store.ReadAggregateStream(ctx, tx2, "TestContext", "TestAggregate", aggregateID, &fromVersion, nil)
 	if err != nil {
 		t.Fatalf("Failed to read aggregate stream: %v", err)
 	}
@@ -793,7 +808,8 @@ func TestReadAggregateStream_WithToVersion(t *testing.T) {
 	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -803,7 +819,8 @@ func TestReadAggregateStream_WithToVersion(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event2",
@@ -813,7 +830,8 @@ func TestReadAggregateStream_WithToVersion(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event3",
@@ -836,7 +854,7 @@ func TestReadAggregateStream_WithToVersion(t *testing.T) {
 	defer tx2.Rollback()
 
 	toVersion := int64(2)
-	stream, err := store.ReadAggregateStream(ctx, tx2, "TestAggregate", aggregateID, nil, &toVersion)
+	stream, err := store.ReadAggregateStream(ctx, tx2, "TestContext", "TestAggregate", aggregateID, nil, &toVersion)
 	if err != nil {
 		t.Fatalf("Failed to read aggregate stream: %v", err)
 	}
@@ -872,7 +890,8 @@ func TestReadAggregateStream_WithVersionRange(t *testing.T) {
 	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -882,7 +901,8 @@ func TestReadAggregateStream_WithVersionRange(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event2",
@@ -892,7 +912,8 @@ func TestReadAggregateStream_WithVersionRange(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event3",
@@ -902,7 +923,8 @@ func TestReadAggregateStream_WithVersionRange(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event4",
@@ -926,7 +948,7 @@ func TestReadAggregateStream_WithVersionRange(t *testing.T) {
 
 	fromVersion := int64(2)
 	toVersion := int64(3)
-	stream, err := store.ReadAggregateStream(ctx, tx2, "TestAggregate", aggregateID, &fromVersion, &toVersion)
+	stream, err := store.ReadAggregateStream(ctx, tx2, "TestContext", "TestAggregate", aggregateID, &fromVersion, &toVersion)
 	if err != nil {
 		t.Fatalf("Failed to read aggregate stream: %v", err)
 	}
@@ -965,7 +987,7 @@ func TestReadAggregateStream_EmptyResult(t *testing.T) {
 	defer tx.Rollback()
 
 	nonExistentID := uuid.New().String()
-	stream, err := store.ReadAggregateStream(ctx, tx, "TestAggregate", nonExistentID, nil, nil)
+	stream, err := store.ReadAggregateStream(ctx, tx, "TestContext", "TestAggregate", nonExistentID, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to read aggregate stream: %v", err)
 	}
@@ -994,7 +1016,8 @@ func TestReadAggregateStream_MultipleAggregates(t *testing.T) {
 
 	events1 := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregate1,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -1004,7 +1027,8 @@ func TestReadAggregateStream_MultipleAggregates(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregate1,
 			EventID:       uuid.New(),
 			EventType:     "Event2",
@@ -1017,7 +1041,8 @@ func TestReadAggregateStream_MultipleAggregates(t *testing.T) {
 
 	events2 := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregate2,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -1046,7 +1071,7 @@ func TestReadAggregateStream_MultipleAggregates(t *testing.T) {
 	tx3, _ := db.BeginTx(ctx, nil)
 	defer tx3.Rollback()
 
-	stream1, err := store.ReadAggregateStream(ctx, tx3, "TestAggregate", aggregate1, nil, nil)
+	stream1, err := store.ReadAggregateStream(ctx, tx3, "TestContext", "TestAggregate", aggregate1, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to read aggregate1 stream: %v", err)
 	}
@@ -1056,7 +1081,7 @@ func TestReadAggregateStream_MultipleAggregates(t *testing.T) {
 	}
 
 	// Read aggregate2 stream
-	stream2, err := store.ReadAggregateStream(ctx, tx3, "TestAggregate", aggregate2, nil, nil)
+	stream2, err := store.ReadAggregateStream(ctx, tx3, "TestContext", "TestAggregate", aggregate2, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to read aggregate2 stream: %v", err)
 	}
@@ -1093,7 +1118,8 @@ func TestReadAggregateStream_Ordering(t *testing.T) {
 	// First batch
 	events1 := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event1",
@@ -1115,7 +1141,8 @@ func TestReadAggregateStream_Ordering(t *testing.T) {
 	otherAggregate := uuid.New().String()
 	eventsOther := []es.Event{
 		{
-			AggregateType: "OtherAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "OtherAggregate",
 			AggregateID:   otherAggregate,
 			EventID:       uuid.New(),
 			EventType:     "OtherEvent",
@@ -1136,7 +1163,8 @@ func TestReadAggregateStream_Ordering(t *testing.T) {
 	// Second batch for our aggregate
 	events2 := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "Event2",
@@ -1158,7 +1186,7 @@ func TestReadAggregateStream_Ordering(t *testing.T) {
 	tx4, _ := db.BeginTx(ctx, nil)
 	defer tx4.Rollback()
 
-	stream, err := store.ReadAggregateStream(ctx, tx4, "TestAggregate", aggregateID, nil, nil)
+	stream, err := store.ReadAggregateStream(ctx, tx4, "TestContext", "TestAggregate", aggregateID, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to read aggregate stream: %v", err)
 	}

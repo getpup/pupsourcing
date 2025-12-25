@@ -124,7 +124,8 @@ func appendTestEvents(t *testing.T, ctx context.Context, db *sql.DB, store *post
 
 		events := []es.Event{
 			{
-				AggregateType: "TestAggregate",
+				BoundedContext: "TestContext",
+				AggregateType:  "TestAggregate",
 				AggregateID:   uuid.New().String(),
 				EventID:       uuid.New(),
 				EventType:     "TestEvent",

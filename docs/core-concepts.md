@@ -77,6 +77,62 @@ Historical state = Apply events up to specific point in time
 - Teams lacking event sourcing experience
 - Systems requiring strict low-latency everywhere
 
+## Bounded Contexts
+
+pupsourcing requires all events to belong to a **bounded context**, supporting Domain-Driven Design (DDD) principles. A bounded context is an explicit boundary within which a domain model is defined and applicable.
+
+### Why Bounded Contexts?
+
+- **Domain Isolation**: Different parts of your system (e.g., Identity, Billing, Catalog) can evolve independently
+- **Clear Boundaries**: Events are explicitly scoped, preventing accidental mixing of concerns
+- **Flexible Projections**: Scoped projections can filter by both aggregate type and bounded context
+- **Uniqueness**: Event uniqueness is enforced per `(BoundedContext, AggregateType, AggregateID, AggregateVersion)`
+- **Scalability**: Partition event store tables by bounded context for improved performance
+- **Retention Policies**: Different contexts can have different data retention requirements
+
+### Example Contexts
+
+```go
+// Identity context - user management
+event := es.Event{
+    BoundedContext: "Identity",
+    AggregateType:  "User",
+    AggregateID:    userID,
+    EventType:      "UserCreated",
+    // ...
+}
+
+// Billing context - subscription management
+event := es.Event{
+    BoundedContext: "Billing",
+    AggregateType:  "Subscription",
+    AggregateID:    subscriptionID,
+    EventType:      "SubscriptionStarted",
+    // ...
+}
+
+// Catalog context - product information
+event := es.Event{
+    BoundedContext: "Catalog",
+    AggregateType:  "Product",
+    AggregateID:    productID,
+    EventType:      "ProductAdded",
+    // ...
+}
+```
+
+### Choosing Bounded Contexts
+
+Bounded contexts should align with your business domains and organizational structure. Common examples:
+
+- **Identity**: User accounts, authentication, profiles
+- **Billing**: Subscriptions, payments, invoicing
+- **Catalog**: Products, categories, inventory
+- **Fulfillment**: Orders, shipping, tracking
+- **Analytics**: Usage tracking, metrics, reporting
+
+Each context should represent a distinct area of the business with its own terminology and rules.
+
 ## Core Components
 
 ### 1. Events

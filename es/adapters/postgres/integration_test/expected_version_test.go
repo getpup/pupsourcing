@@ -26,7 +26,8 @@ func TestExpectedVersion_NoStream(t *testing.T) {
 	aggregateID := uuid.New().String()
 
 	event := es.Event{
-		AggregateType: "TestAggregate",
+		BoundedContext: "TestContext",
+		AggregateType:  "TestAggregate",
 		AggregateID:   aggregateID,
 		EventID:       uuid.New(),
 		EventType:     "TestEventCreated",
@@ -73,7 +74,8 @@ func TestExpectedVersion_Exact(t *testing.T) {
 
 	// Create aggregate with version 1
 	event1 := es.Event{
-		AggregateType: "TestAggregate",
+		BoundedContext: "TestContext",
+		AggregateType:  "TestAggregate",
 		AggregateID:   aggregateID,
 		EventID:       uuid.New(),
 		EventType:     "TestEventCreated",
@@ -94,7 +96,8 @@ func TestExpectedVersion_Exact(t *testing.T) {
 
 	// Append with Exact(1) should succeed
 	event2 := es.Event{
-		AggregateType: "TestAggregate",
+		BoundedContext: "TestContext",
+		AggregateType:  "TestAggregate",
 		AggregateID:   aggregateID,
 		EventID:       uuid.New(),
 		EventType:     "TestEventUpdated",
@@ -115,7 +118,8 @@ func TestExpectedVersion_Exact(t *testing.T) {
 
 	// Append with Exact(1) should now fail (version is now 2)
 	event3 := es.Event{
-		AggregateType: "TestAggregate",
+		BoundedContext: "TestContext",
+		AggregateType:  "TestAggregate",
 		AggregateID:   aggregateID,
 		EventID:       uuid.New(),
 		EventType:     "TestEventUpdated",
@@ -156,7 +160,8 @@ func TestExpectedVersion_Exact_NonExistent(t *testing.T) {
 	aggregateID := uuid.New().String()
 
 	event := es.Event{
-		AggregateType: "TestAggregate",
+		BoundedContext: "TestContext",
+		AggregateType:  "TestAggregate",
 		AggregateID:   aggregateID,
 		EventID:       uuid.New(),
 		EventType:     "TestEventCreated",
@@ -189,7 +194,8 @@ func TestExpectedVersion_Any(t *testing.T) {
 
 	// First append with Any() on new aggregate should succeed
 	event1 := es.Event{
-		AggregateType: "TestAggregate",
+		BoundedContext: "TestContext",
+		AggregateType:  "TestAggregate",
 		AggregateID:   aggregateID,
 		EventID:       uuid.New(),
 		EventType:     "TestEventCreated",
@@ -210,7 +216,8 @@ func TestExpectedVersion_Any(t *testing.T) {
 
 	// Second append with Any() on existing aggregate should also succeed
 	event2 := es.Event{
-		AggregateType: "TestAggregate",
+		BoundedContext: "TestContext",
+		AggregateType:  "TestAggregate",
 		AggregateID:   aggregateID,
 		EventID:       uuid.New(),
 		EventType:     "TestEventUpdated",
@@ -244,7 +251,8 @@ func TestExpectedVersion_UniquenessPattern(t *testing.T) {
 	email := "user@example.com"
 
 	event := es.Event{
-		AggregateType: "EmailReservation",
+		BoundedContext: "TestContext",
+		AggregateType:  "EmailReservation",
 		AggregateID:   email,
 		EventID:       uuid.New(),
 		EventType:     "EmailReserved",

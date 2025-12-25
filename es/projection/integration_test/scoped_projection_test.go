@@ -64,6 +64,10 @@ func (p *scopedProjection) AggregateTypes() []string {
 	return p.aggregateTypes
 }
 
+func (p *scopedProjection) BoundedContexts() []string {
+	return nil  // No filtering by bounded context in tests
+}
+
 //nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
 func (p *scopedProjection) Handle(_ context.Context, event es.PersistedEvent) error {
 	p.mu.Lock()

@@ -675,78 +675,51 @@ func (r *Runner) Run(ctx context.Context, configs []ProjectionConfig) error
 **Example:**
 ```go
 store := postgres.NewStore(postgres.DefaultStoreConfig())
-runner := runner.New(db, store, store)
+runner := runner.New()
 
-configs := []runner.ProjectionConfig{
-    {Projection: proj1, ProcessorConfig: config1},
-    {Projection: proj2, ProcessorConfig: config2},
+// Create processors for each projection
+config1 := projection.DefaultProcessorConfig()
+processor1 := postgres.NewProcessor(db, store, &config1)
+
+config2 := projection.DefaultProcessorConfig()
+processor2 := postgres.NewProcessor(db, store, &config2)
+
+// Run projections
+runners := []runner.ProjectionRunner{
+    {Projection: proj1, Processor: processor1},
+    {Projection: proj2, Processor: processor2},
 }
 
-err := runner.Run(ctx, configs)
+err := runner.Run(ctx, runners)
 ```
 
-### runner.ProjectionConfig
+### runner.ProjectionRunner
 
-Configuration for a single projection in the runner.
+Pairs a projection with its adapter-specific processor.
 
 ```go
-type ProjectionConfig struct {
-    Projection      projection.Projection
-    ProcessorConfig projection.ProcessorConfig
+type ProjectionRunner struct {
+    Projection projection.Projection
+    Processor  projection.ProcessorRunner
 }
 ```
 
-### runner.RunProjectionPartitions
-
-Helper that runs a projection with N partitions in the same process.
-
-```go
-func RunProjectionPartitions(ctx context.Context, txProvider projection.TxProvider, 
-                            eventReader store.EventReader, checkpointStore store.CheckpointStore,
-                            proj projection.Projection, totalPartitions int) error
-```
-
-**Parameters:**
-- `ctx`: Context
-- `txProvider`: Transaction provider (typically `*sql.DB`)
-- `eventReader`: Event reader
-- `checkpointStore`: Checkpoint store
-- `proj`: Projection to run
-- `totalPartitions`: Number of partitions (workers)
-
-**Returns:**
-- `error`: Error if any
-
-**Breaking Change (v1.2.0):** Added `checkpointStore` parameter for adapter pattern compliance.
+**Fields:**
+- `Projection`: The projection to run
+- `Processor`: Adapter-specific processor (postgres.Processor, mysql.Processor, etc.)
 
 **Example:**
 ```go
 store := postgres.NewStore(postgres.DefaultStoreConfig())
-// Run 4 workers in same process
-err := runner.RunProjectionPartitions(ctx, db, store, store, projection, 4)
-```
+config := projection.DefaultProcessorConfig()
+config.PartitionKey = 0
+config.TotalPartitions = 4
+processor := postgres.NewProcessor(db, store, &config)
 
-### runner.RunMultipleProjections
-
-Helper that runs multiple projections with custom configurations.
-
-```go
-func RunMultipleProjections(ctx context.Context, txProvider projection.TxProvider,
-                           eventReader store.EventReader, checkpointStore store.CheckpointStore,
-                           configs []ProjectionConfig) error
-```
-
-**Breaking Change (v1.2.0):** Added `checkpointStore` parameter for adapter pattern compliance.
-
-**Example:**
-```go
-store := postgres.NewStore(postgres.DefaultStoreConfig())
-configs := []runner.ProjectionConfig{
-    {Projection: &Projection1{}, ProcessorConfig: config1},
-    {Projection: &Projection2{}, ProcessorConfig: config2},
-}
-
-err := runner.RunMultipleProjections(ctx, db, store, store, configs)
+runner := runner.New()
+err := runner.Run(ctx, []runner.ProjectionRunner{
+    {Projection: &MyProjection{}, Processor: processor},
+})
 ```
 
 ## PostgreSQL Adapter

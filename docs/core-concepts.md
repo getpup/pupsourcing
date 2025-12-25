@@ -530,10 +530,13 @@ All dependencies are passed explicitly as parameters. There are no hidden global
 **Explicit dependencies (pupsourcing):**
 ```go
 // Every dependency is visible at the call site
-runner := runner.New(db, eventReader)
-err := runner.Run(ctx, []runner.ProjectionConfig{
-    {Projection: proj1, ProcessorConfig: config1},
-    {Projection: proj2, ProcessorConfig: config2},
+store := postgres.NewStore(postgres.DefaultStoreConfig())
+config := projection.DefaultProcessorConfig()
+processor := postgres.NewProcessor(db, store, &config)
+
+r := runner.New()
+err := r.Run(ctx, []runner.ProjectionRunner{
+    {Projection: proj1, Processor: processor},
 })
 ```
 

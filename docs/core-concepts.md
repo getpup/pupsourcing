@@ -93,17 +93,18 @@ The Event struct represents an immutable domain event before it is stored. When 
 
 ```go
 type Event struct {
-    CreatedAt     time.Time
-    AggregateType string          // Type of aggregate (e.g., "User", "Order")
-    EventType     string          // Type of event (e.g., "UserCreated", "OrderPlaced")
-    AggregateID   string          // Aggregate instance identifier (UUID string, email, or any identifier)
-    Payload       []byte          // Event data (typically JSON)
-    Metadata      []byte          // Additional metadata (typically JSON)
-    EventVersion  int             // Schema version of this event type (default: 1)
-    CausationID   es.NullString  // ID of event/command that caused this event
-    CorrelationID es.NullString  // Link related events across aggregates
-    TraceID       es.NullString  // Distributed tracing ID
-    EventID       uuid.UUID       // Unique event identifier
+    CreatedAt      time.Time
+    BoundedContext string          // Bounded context this event belongs to (e.g., "Identity", "Billing")
+    AggregateType  string          // Type of aggregate (e.g., "User", "Order")
+    EventType      string          // Type of event (e.g., "UserCreated", "OrderPlaced")
+    AggregateID    string          // Aggregate instance identifier (UUID string, email, or any identifier)
+    Payload        []byte          // Event data (typically JSON)
+    Metadata       []byte          // Additional metadata (typically JSON)
+    EventVersion   int             // Schema version of this event type (default: 1)
+    CausationID    es.NullString  // ID of event/command that caused this event
+    CorrelationID  es.NullString  // Link related events across aggregates
+    TraceID        es.NullString  // Distributed tracing ID
+    EventID        uuid.UUID       // Unique event identifier
 }
 ```
 
@@ -118,6 +119,7 @@ Note that AggregateVersion and GlobalPosition are not part of the Event struct b
 ```go
 type PersistedEvent struct {
     CreatedAt        time.Time
+    BoundedContext   string
     AggregateType    string
     EventType        string
     AggregateID      string
@@ -188,24 +190,26 @@ aggregateID := uuid.New().String()
 
 events := []es.Event{
     {
-        AggregateType: "User",
-        AggregateID:   aggregateID,
-        EventType:     "UserCreated",
-        EventVersion:  1,
-        Payload:       []byte(`{"email":"alice@example.com"}`),
-        Metadata:      []byte(`{}`),
-        EventID:       uuid.New(),
-        CreatedAt:     time.Now(),
+        BoundedContext: "Identity",
+        AggregateType:  "User",
+        AggregateID:    aggregateID,
+        EventType:      "UserCreated",
+        EventVersion:   1,
+        Payload:        []byte(`{"email":"alice@example.com"}`),
+        Metadata:       []byte(`{}`),
+        EventID:        uuid.New(),
+        CreatedAt:      time.Now(),
     },
     {
-        AggregateType: "User",
-        AggregateID:   aggregateID,  // Same aggregate
-        EventType:     "EmailVerified",
-        EventVersion:  1,
-        Payload:       []byte(`{}`),
-        Metadata:      []byte(`{}`),
-        EventID:       uuid.New(),
-        CreatedAt:     time.Now(),
+        BoundedContext: "Identity",
+        AggregateType:  "User",
+        AggregateID:    aggregateID,  // Same aggregate
+        EventType:      "EmailVerified",
+        EventVersion:   1,
+        Payload:        []byte(`{}`),
+        Metadata:       []byte(`{}`),
+        EventID:        uuid.New(),
+        CreatedAt:      time.Now(),
     },
 }
 ```
@@ -239,7 +243,8 @@ Projections transform events into read models (materialized views), enabling fle
 ```go
 type ScopedProjection interface {
     Projection
-    AggregateTypes() []string  // Returns aggregate types to process
+    AggregateTypes() []string     // Filter by aggregate type
+    BoundedContexts() []string    // Filter by bounded context
 }
 ```
 
@@ -593,20 +598,21 @@ tx, _ := db.BeginTx(ctx, nil)
 aggregateID := uuid.New().String()
 events := []es.Event{
     {
-        AggregateType: "User",
-        AggregateID:   aggregateID,
-        EventType:     "UserCreated",
-        EventVersion:  1,
-        Payload:       []byte(`{"email":"user@example.com"}`),
-        Metadata:      []byte(`{}`),
-        EventID:       uuid.New(),
-        CreatedAt:     time.Now(),
+        BoundedContext: "Identity",
+        AggregateType:  "User",
+        AggregateID:    aggregateID,
+        EventType:      "UserCreated",
+        EventVersion:   1,
+        Payload:        []byte(`{"email":"user@example.com"}`),
+        Metadata:       []byte(`{}`),
+        EventID:        uuid.New(),
+        CreatedAt:      time.Now(),
     },
 }
 store.Append(ctx, tx, es.NoStream(), events)
 
 // Read immediately within same transaction
-aggregate, _ := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
+aggregate, _ := store.ReadAggregateStream(ctx, tx, "Identity", "User", aggregateID, nil, nil)
 tx.Commit()
 ```
 
@@ -664,7 +670,7 @@ func (u *User) Apply(event es.PersistedEvent) {
 }
 
 func LoadUser(ctx context.Context, tx es.DBTX, store store.AggregateStreamReader, id string) (*User, error) {
-    stream, err := store.ReadAggregateStream(ctx, tx, "User", id, nil, nil)
+    stream, err := store.ReadAggregateStream(ctx, tx, "Identity", "User", id, nil, nil)
     if err != nil {
         return nil, err
     }

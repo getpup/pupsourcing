@@ -111,14 +111,15 @@ payload, _ := json.Marshal(UserCreated{
 aggregateID := uuid.New().String() // In practice, this comes from your domain/business logic
 events := []es.Event{
     {
-        AggregateType: "User",
-        AggregateID:   aggregateID,
-        EventID:       uuid.New(),
-        EventType:     "UserCreated",
-        EventVersion:  1,
-        Payload:       payload,
-        Metadata:      []byte(`{}`),
-        CreatedAt:     time.Now(),
+        BoundedContext: "Identity",  // Required: scope events to bounded context
+        AggregateType:  "User",
+        AggregateID:    aggregateID,
+        EventID:        uuid.New(),
+        EventType:      "UserCreated",
+        EventVersion:   1,
+        Payload:        payload,
+        Metadata:       []byte(`{}`),
+        CreatedAt:      time.Now(),
     },
 }
 
@@ -148,7 +149,7 @@ aggregateID := "550e8400-e29b-41d4-a716-446655440000" // Use the actual aggregat
 tx, _ := db.BeginTx(ctx, nil)
 defer tx.Rollback()
 
-stream, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
+stream, err := store.ReadAggregateStream(ctx, tx, "Identity", "User", aggregateID, nil, nil)
 if err != nil {
     log.Fatal(err)
 }
@@ -180,6 +181,11 @@ func (p *UserCountProjection) Name() string {
 // AggregateTypes makes this a scoped projection
 func (p *UserCountProjection) AggregateTypes() []string {
     return []string{"User"}  // Only receives User events
+}
+
+// BoundedContexts filters by context - receives only Identity context events
+func (p *UserCountProjection) BoundedContexts() []string {
+    return []string{"Identity"}
 }
 
 func (p *UserCountProjection) Handle(_ context.Context, event es.PersistedEvent) error {
@@ -227,24 +233,26 @@ See the [complete working example](../examples/single-worker/main.go) that ties 
 userID := uuid.New().String()
 events := []es.Event{
     {
-        AggregateType: "User",
-        AggregateID:   userID,
-        EventID:       uuid.New(),
-        EventType:     "UserCreated",
-        EventVersion:  1,
-        Payload:       payload1,
-        Metadata:      []byte(`{}`),
-        CreatedAt:     time.Now(),
+        BoundedContext: "Identity",
+        AggregateType:  "User",
+        AggregateID:    userID,
+        EventID:        uuid.New(),
+        EventType:      "UserCreated",
+        EventVersion:   1,
+        Payload:        payload1,
+        Metadata:       []byte(`{}`),
+        CreatedAt:      time.Now(),
     },
     {
-        AggregateType: "User",
-        AggregateID:   userID,  // Same aggregate
-        EventID:       uuid.New(),
-        EventType:     "EmailVerified",
-        EventVersion:  1,
-        Payload:       payload2,
-        Metadata:      []byte(`{}`),
-        CreatedAt:     time.Now(),
+        BoundedContext: "Identity",
+        AggregateType:  "User",
+        AggregateID:    userID,  // Same aggregate
+        EventID:        uuid.New(),
+        EventType:      "EmailVerified",
+        EventVersion:   1,
+        Payload:        payload2,
+        Metadata:       []byte(`{}`),
+        CreatedAt:      time.Now(),
     },
 }
 
@@ -271,11 +279,11 @@ aggregateID := uuid.New().String()
 
 // Read from version 5 onwards (e.g., after loading a snapshot)
 fromVersion := int64(5)
-stream, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, nil)
+stream, err := store.ReadAggregateStream(ctx, tx, "Identity", "User", aggregateID, &fromVersion, nil)
 
 // Read a specific range
 toVersion := int64(10)
-stream, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, &toVersion)
+stream, err := store.ReadAggregateStream(ctx, tx, "Identity", "User", aggregateID, &fromVersion, &toVersion)
 ```
 
 ## Troubleshooting

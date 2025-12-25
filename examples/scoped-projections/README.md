@@ -26,6 +26,11 @@ func (p *UserReadModelProjection) AggregateTypes() []string {
     return []string{"User"}  // Only receives User events
 }
 
+// BoundedContexts implements ScopedProjection
+func (p *UserReadModelProjection) BoundedContexts() []string {
+    return []string{"Identity"}  // Only receives Identity context events
+}
+
 func (p *UserReadModelProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
     // Only User events arrive here
     return nil
@@ -117,11 +122,12 @@ Example output:
 
 ## Key Takeaways
 
-1. **Scoped projections** (implementing `ScopedProjection`) filter events by aggregate type
+1. **Scoped projections** (implementing `ScopedProjection`) filter events by aggregate type and bounded context
 2. **Global projections** (implementing only `Projection`) receive all events
 3. Both can run concurrently in the same application
 4. Each projection maintains its own checkpoint, allowing them to process at different rates
 5. Filtering happens efficiently at the processor level, not in the projection handler
+6. Scoped projections can filter by both `AggregateTypes()` and `BoundedContexts()`
 
 ## Use Cases
 

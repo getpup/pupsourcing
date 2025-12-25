@@ -48,12 +48,13 @@ func (p *globalProjection) getReceivedEvents() []es.PersistedEvent {
 	return result
 }
 
-// scopedProjection only receives specified aggregate types
+// scopedProjection only receives specified aggregate types and bounded contexts
 type scopedProjection struct {
-	name           string
-	aggregateTypes []string
-	mu             sync.Mutex
-	receivedEvents []es.PersistedEvent
+	name            string
+	aggregateTypes  []string
+	boundedContexts []string
+	mu              sync.Mutex
+	receivedEvents  []es.PersistedEvent
 }
 
 func (p *scopedProjection) Name() string {
@@ -65,7 +66,7 @@ func (p *scopedProjection) AggregateTypes() []string {
 }
 
 func (p *scopedProjection) BoundedContexts() []string {
-	return nil  // No filtering by bounded context in tests
+	return p.boundedContexts
 }
 
 //nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
@@ -246,8 +247,9 @@ func TestScopedProjection_OnlyReceivesMatchingAggregates(t *testing.T) {
 
 	// Create scoped projection that only cares about User events
 	scopedProj := &scopedProjection{
-		name:           "user_scoped_test",
-		aggregateTypes: []string{"User"},
+		name:            "user_scoped_test",
+		aggregateTypes:  []string{"User"},
+		boundedContexts: nil, // No filtering by context
 	}
 	config := projection.DefaultProcessorConfig()
 	processor := postgres.NewProcessor(db, store, &config)
@@ -346,8 +348,9 @@ func TestScopedProjection_MultipleAggregateTypes(t *testing.T) {
 
 	// Create scoped projection that cares about User and Order events
 	scopedProj := &scopedProjection{
-		name:           "user_order_scoped_test",
-		aggregateTypes: []string{"User", "Order"},
+		name:            "user_order_scoped_test",
+		aggregateTypes:  []string{"User", "Order"},
+		boundedContexts: nil, // No filtering by context
 	}
 	config := projection.DefaultProcessorConfig()
 	processor := postgres.NewProcessor(db, store, &config)
@@ -424,8 +427,9 @@ func TestScopedProjection_EmptyAggregateTypesReceivesAll(t *testing.T) {
 
 	// Create scoped projection with empty aggregate types list
 	scopedProj := &scopedProjection{
-		name:           "empty_scoped_test",
-		aggregateTypes: []string{},
+		name:            "empty_scoped_test",
+		aggregateTypes:  []string{},
+		boundedContexts: nil, // No filtering by context
 	}
 	config := projection.DefaultProcessorConfig()
 	processor := postgres.NewProcessor(db, store, &config)
@@ -507,8 +511,9 @@ func TestScopedProjection_MixedProjectionsWorkCorrectly(t *testing.T) {
 	// Create both global and scoped projections
 	globalProj := &globalProjection{name: "mixed_global_test"}
 	scopedProj := &scopedProjection{
-		name:           "mixed_scoped_test",
-		aggregateTypes: []string{"User"},
+		name:            "mixed_scoped_test",
+		aggregateTypes:  []string{"User"},
+		boundedContexts: nil, // No filtering by context
 	}
 
 	// Run global projection
@@ -549,5 +554,164 @@ func TestScopedProjection_MixedProjectionsWorkCorrectly(t *testing.T) {
 
 	if len(scopedEvents) > 0 && scopedEvents[0].AggregateType != "User" {
 		t.Errorf("Scoped projection: expected User event, got %s", scopedEvents[0].AggregateType)
+	}
+}
+
+func TestScopedProjection_FilterByBoundedContext(t *testing.T) {
+	db := getTestDB(t)
+	defer db.Close()
+
+	setupTestTables(t, db)
+
+	ctx := context.Background()
+	store := postgres.NewStore(postgres.DefaultStoreConfig())
+
+	// Append events from different bounded contexts and aggregate types
+	events := []es.Event{
+		// Identity context - User
+		{
+			BoundedContext: "Identity",
+			AggregateType:  "User",
+			AggregateID:    uuid.New().String(),
+			EventID:        uuid.New(),
+			EventType:      "UserCreated",
+			EventVersion:   1,
+			Payload:        []byte(`{"email":"user1@example.com"}`),
+			Metadata:       []byte(`{}`),
+			CreatedAt:      time.Now(),
+		},
+		// Identity context - Profile
+		{
+			BoundedContext: "Identity",
+			AggregateType:  "Profile",
+			AggregateID:    uuid.New().String(),
+			EventID:        uuid.New(),
+			EventType:      "ProfileCreated",
+			EventVersion:   1,
+			Payload:        []byte(`{"name":"Alice"}`),
+			Metadata:       []byte(`{}`),
+			CreatedAt:      time.Now(),
+		},
+		// Billing context - Subscription
+		{
+			BoundedContext: "Billing",
+			AggregateType:  "Subscription",
+			AggregateID:    uuid.New().String(),
+			EventID:        uuid.New(),
+			EventType:      "SubscriptionCreated",
+			EventVersion:   1,
+			Payload:        []byte(`{"plan":"premium"}`),
+			Metadata:       []byte(`{}`),
+			CreatedAt:      time.Now(),
+		},
+		// Catalog context - Product
+		{
+			BoundedContext: "Catalog",
+			AggregateType:  "Product",
+			AggregateID:    uuid.New().String(),
+			EventID:        uuid.New(),
+			EventType:      "ProductAdded",
+			EventVersion:   1,
+			Payload:        []byte(`{"name":"Widget"}`),
+			Metadata:       []byte(`{}`),
+			CreatedAt:      time.Now(),
+		},
+	}
+
+	// Append each event separately since they belong to different aggregates
+	for _, event := range events {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("Failed to begin transaction: %v", err)
+		}
+		_, err = store.Append(ctx, tx, es.NoStream(), []es.Event{event})
+		if err != nil {
+			tx.Rollback()
+			t.Fatalf("Failed to append event: %v", err)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatalf("Failed to commit transaction: %v", err)
+		}
+	}
+
+	// Create scoped projection that only receives Identity context events
+	identityProj := &scopedProjection{
+		name:           "identity_projection",
+		aggregateTypes: nil, // Accept all aggregate types
+		boundedContexts: []string{"Identity"},
+		receivedEvents: make([]es.PersistedEvent, 0),
+	}
+
+	// Create scoped projection for Identity context + User aggregate type
+	identityUserProj := &scopedProjection{
+		name:            "identity_user_projection",
+		aggregateTypes:  []string{"User"},
+		boundedContexts: []string{"Identity"},
+		receivedEvents:  make([]es.PersistedEvent, 0),
+	}
+
+	// Create global projection that receives everything
+	globalProj := &globalProjection{
+		name:           "global_projection",
+		receivedEvents: make([]es.PersistedEvent, 0),
+	}
+
+	// Run projections
+	config := projection.DefaultProcessorConfig()
+	config.PollInterval = 100 * time.Millisecond
+	processor := postgres.NewProcessor(db, store, &config)
+
+	projCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	go func() {
+		defer wg.Done()
+		_ = processor.Run(projCtx, identityProj)
+	}()
+
+	go func() {
+		defer wg.Done()
+		_ = processor.Run(projCtx, identityUserProj)
+	}()
+
+	go func() {
+		defer wg.Done()
+		_ = processor.Run(projCtx, globalProj)
+	}()
+
+	wg.Wait()
+
+	// Verify global projection received all 4 events
+	globalEvents := globalProj.getReceivedEvents()
+	if len(globalEvents) != 4 {
+		t.Errorf("Global projection: expected 4 events, got %d", len(globalEvents))
+	}
+
+	// Verify Identity-scoped projection received only Identity context events (2 events)
+	identityEvents := identityProj.getReceivedEvents()
+	if len(identityEvents) != 2 {
+		t.Errorf("Identity projection: expected 2 Identity events, got %d", len(identityEvents))
+	}
+	for _, event := range identityEvents {
+		if event.BoundedContext != "Identity" {
+			t.Errorf("Identity projection: expected Identity context, got %s", event.BoundedContext)
+		}
+	}
+
+	// Verify Identity+User scoped projection received only 1 event
+	identityUserEvents := identityUserProj.getReceivedEvents()
+	if len(identityUserEvents) != 1 {
+		t.Errorf("Identity+User projection: expected 1 event, got %d", len(identityUserEvents))
+	}
+	if len(identityUserEvents) > 0 {
+		if identityUserEvents[0].BoundedContext != "Identity" {
+			t.Errorf("Identity+User projection: expected Identity context, got %s", identityUserEvents[0].BoundedContext)
+		}
+		if identityUserEvents[0].AggregateType != "User" {
+			t.Errorf("Identity+User projection: expected User aggregate, got %s", identityUserEvents[0].AggregateType)
+		}
 	}
 }

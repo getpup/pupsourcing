@@ -19,17 +19,18 @@ Represents an immutable domain event before persistence.
 
 ```go
 type Event struct {
-    CreatedAt     time.Time
-    AggregateType string          // Type of aggregate (e.g., "User", "Order")
-    EventType     string          // Type of event (e.g., "UserCreated")
-    AggregateID   string          // Aggregate instance identifier (UUID string, email, or any identifier)
-    Payload       []byte          // Event data (typically JSON)
-    Metadata      []byte          // Additional metadata (typically JSON)
-    EventVersion  int             // Schema version of this event type (default: 1)
-    CausationID   es.NullString  // ID of event/command that caused this event
-    CorrelationID es.NullString  // Links related events across aggregates
-    TraceID       es.NullString  // Distributed tracing ID
-    EventID       uuid.UUID       // Unique event identifier
+    CreatedAt      time.Time
+    BoundedContext string          // Bounded context this event belongs to (e.g., "Identity", "Billing")
+    AggregateType  string          // Type of aggregate (e.g., "User", "Order")
+    EventType      string          // Type of event (e.g., "UserCreated")
+    AggregateID    string          // Aggregate instance identifier (UUID string, email, or any identifier)
+    Payload        []byte          // Event data (typically JSON)
+    Metadata       []byte          // Additional metadata (typically JSON)
+    EventVersion   int             // Schema version of this event type (default: 1)
+    CausationID    es.NullString  // ID of event/command that caused this event
+    CorrelationID  es.NullString  // Links related events across aggregates
+    TraceID        es.NullString  // Distributed tracing ID
+    EventID        uuid.UUID       // Unique event identifier
 }
 ```
 
@@ -71,8 +72,9 @@ _, err := store.Append(ctx, tx, es.Any(), []es.Event{event})
 // Uniqueness enforcement via reservation aggregate
 email := "user@example.com"
 reservationEvent := es.Event{
-    AggregateType: "EmailReservation",
-    AggregateID:   email,  // Use email as aggregate ID
+    BoundedContext: "Identity",
+    AggregateType:  "EmailReservation",
+    AggregateID:    email,  // Use email as aggregate ID
     // ... other fields
 }
 _, err := store.Append(ctx, tx, es.NoStream(), []es.Event{reservationEvent})
@@ -86,6 +88,7 @@ Represents an event that has been stored, including position information.
 ```go
 type PersistedEvent struct {
     CreatedAt        time.Time
+    BoundedContext   string
     AggregateType    string
     EventType        string
     AggregateID      string

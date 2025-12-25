@@ -117,10 +117,19 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, expectedVersion es.Expec
 			"expected_version", expectedVersion.String())
 	}
 
-	// Validate all events belong to same aggregate
+	// Validate all events belong to same aggregate and have BoundedContext
 	firstEvent := events[0]
+	if firstEvent.BoundedContext == "" {
+		return es.AppendResult{}, fmt.Errorf("bounded context is required")
+	}
 	for i := range events {
 		e := &events[i]
+		if e.BoundedContext == "" {
+			return es.AppendResult{}, fmt.Errorf("event %d: bounded context is required", i)
+		}
+		if e.BoundedContext != firstEvent.BoundedContext {
+			return es.AppendResult{}, fmt.Errorf("event %d: bounded context mismatch", i)
+		}
 		if e.AggregateType != firstEvent.AggregateType {
 			return es.AppendResult{}, fmt.Errorf("event %d: aggregate type mismatch", i)
 		}
@@ -134,10 +143,10 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, expectedVersion es.Expec
 	query := fmt.Sprintf(`
 		SELECT aggregate_version 
 		FROM %s 
-		WHERE aggregate_type = $1 AND aggregate_id = $2
+		WHERE bounded_context = $1 AND aggregate_type = $2 AND aggregate_id = $3
 	`, s.config.AggregateHeadsTable)
 
-	err := tx.QueryRowContext(ctx, query, firstEvent.AggregateType, firstEvent.AggregateID).Scan(&currentVersion)
+	err := tx.QueryRowContext(ctx, query, firstEvent.BoundedContext, firstEvent.AggregateType, firstEvent.AggregateID).Scan(&currentVersion)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return es.AppendResult{}, fmt.Errorf("failed to check current version: %w", err)
 	}
@@ -209,11 +218,11 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, expectedVersion es.Expec
 	persistedEvents := make([]es.PersistedEvent, len(events))
 	insertQuery := fmt.Sprintf(`
 		INSERT INTO %s (
-			aggregate_type, aggregate_id, aggregate_version,
+			bounded_context, aggregate_type, aggregate_id, aggregate_version,
 			event_id, event_type, event_version,
 			payload, trace_id, correlation_id, causation_id,
 			metadata, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		RETURNING global_position
 	`, s.config.EventsTable)
 
@@ -223,6 +232,7 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, expectedVersion es.Expec
 
 		var globalPos int64
 		err = tx.QueryRowContext(ctx, insertQuery,
+			event.BoundedContext,
 			event.AggregateType,
 			event.AggregateID,
 			aggregateVersion,
@@ -255,6 +265,7 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, expectedVersion es.Expec
 		// Build persisted event
 		persistedEvents[i] = es.PersistedEvent{
 			GlobalPosition:   globalPos,
+			BoundedContext:   event.BoundedContext,
 			AggregateType:    event.AggregateType,
 			AggregateID:      event.AggregateID,
 			AggregateVersion: aggregateVersion,
@@ -273,13 +284,13 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, expectedVersion es.Expec
 	// Update aggregate_heads with the new version (UPSERT pattern)
 	latestVersion := nextVersion + int64(len(events)) - 1
 	upsertQuery := fmt.Sprintf(`
-		INSERT INTO %s (aggregate_type, aggregate_id, aggregate_version, updated_at)
-		VALUES ($1, $2, $3, NOW())
-		ON CONFLICT (aggregate_type, aggregate_id)
-		DO UPDATE SET aggregate_version = $3, updated_at = NOW()
+		INSERT INTO %s (bounded_context, aggregate_type, aggregate_id, aggregate_version, updated_at)
+		VALUES ($1, $2, $3, $4, NOW())
+		ON CONFLICT (bounded_context, aggregate_type, aggregate_id)
+		DO UPDATE SET aggregate_version = $4, updated_at = NOW()
 	`, s.config.AggregateHeadsTable)
 
-	_, err = tx.ExecContext(ctx, upsertQuery, firstEvent.AggregateType, firstEvent.AggregateID, latestVersion)
+	_, err = tx.ExecContext(ctx, upsertQuery, firstEvent.BoundedContext, firstEvent.AggregateType, firstEvent.AggregateID, latestVersion)
 	if err != nil {
 		return es.AppendResult{}, fmt.Errorf("failed to update aggregate head: %w", err)
 	}
@@ -354,7 +365,7 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 
 	query := fmt.Sprintf(`
 		SELECT 
-			global_position, aggregate_type, aggregate_id, aggregate_version,
+			global_position, bounded_context, aggregate_type, aggregate_id, aggregate_version,
 			event_id, event_type, event_version,
 			payload, trace_id, correlation_id, causation_id,
 			metadata, created_at
@@ -375,6 +386,7 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 		var e es.PersistedEvent
 		err := rows.Scan(
 			&e.GlobalPosition,
+			&e.BoundedContext,
 			&e.AggregateType,
 			&e.AggregateID,
 			&e.AggregateVersion,
@@ -406,9 +418,10 @@ func (s *Store) ReadEvents(ctx context.Context, tx es.DBTX, fromPosition int64, 
 }
 
 // ReadAggregateStream implements store.AggregateStreamReader.
-func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType, aggregateID string, fromVersion, toVersion *int64) (es.Stream, error) {
+func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, boundedContext, aggregateType, aggregateID string, fromVersion, toVersion *int64) (es.Stream, error) {
 	if s.config.Logger != nil {
 		s.config.Logger.Debug(ctx, "reading aggregate stream",
+			"bounded_context", boundedContext,
 			"aggregate_type", aggregateType,
 			"aggregate_id", aggregateID,
 			"from_version", fromVersion,
@@ -418,17 +431,17 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 	// Build the query dynamically based on optional version parameters
 	baseQuery := fmt.Sprintf(`
 		SELECT 
-			global_position, aggregate_type, aggregate_id, aggregate_version,
+			global_position, bounded_context, aggregate_type, aggregate_id, aggregate_version,
 			event_id, event_type, event_version,
 			payload, trace_id, correlation_id, causation_id,
 			metadata, created_at
 		FROM %s
-		WHERE aggregate_type = $1 AND aggregate_id = $2
+		WHERE bounded_context = $1 AND aggregate_type = $2 AND aggregate_id = $3
 	`, s.config.EventsTable)
 
 	var args []interface{}
-	args = append(args, aggregateType, aggregateID)
-	paramIndex := 3
+	args = append(args, boundedContext, aggregateType, aggregateID)
+	paramIndex := 4
 
 	// Add version range filters if specified
 	if fromVersion != nil {
@@ -456,6 +469,7 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 		var e es.PersistedEvent
 		err := rows.Scan(
 			&e.GlobalPosition,
+			&e.BoundedContext,
 			&e.AggregateType,
 			&e.AggregateID,
 			&e.AggregateVersion,
@@ -481,15 +495,17 @@ func (s *Store) ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateTy
 
 	if s.config.Logger != nil {
 		s.config.Logger.Debug(ctx, "aggregate stream read",
+			"bounded_context", boundedContext,
 			"aggregate_type", aggregateType,
 			"aggregate_id", aggregateID,
 			"event_count", len(events))
 	}
 
 	return es.Stream{
-		AggregateType: aggregateType,
-		AggregateID:   aggregateID,
-		Events:        events,
+		BoundedContext: boundedContext,
+		AggregateType:  aggregateType,
+		AggregateID:    aggregateID,
+		Events:         events,
 	}, nil
 }
 

@@ -65,3 +65,4 @@ stop-resume
 with-logging
 *.test
 integration_test.test
+eventmap-codegen

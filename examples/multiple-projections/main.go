@@ -220,14 +220,15 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 
 		events := []es.Event{
 			{
-				AggregateType: "User",
-				AggregateID:   u.id,
-				EventID:       uuid.New(),
-				EventType:     "UserCreated",
-				EventVersion:  1,
-				Payload:       payload,
-				Metadata:      []byte(`{}`),
-				CreatedAt:     time.Now(),
+				BoundedContext: "Identity",
+				AggregateType:  "User",
+				AggregateID:    u.id,
+				EventID:        uuid.New(),
+				EventType:      "UserCreated",
+				EventVersion:   1,
+				Payload:        payload,
+				Metadata:       []byte(`{}`),
+				CreatedAt:      time.Now(),
 			},
 		}
 
@@ -262,14 +263,15 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 
 		events := []es.Event{
 			{
-				AggregateType: "Order",
-				AggregateID:   uuid.New().String(),
-				EventID:       uuid.New(),
-				EventType:     "OrderPlaced",
-				EventVersion:  1,
-				Payload:       payload,
-				Metadata:      []byte(`{}`),
-				CreatedAt:     time.Now(),
+				BoundedContext: "Sales",
+				AggregateType:  "Order",
+				AggregateID:    uuid.New().String(),
+				EventID:        uuid.New(),
+				EventType:      "OrderPlaced",
+				EventVersion:   1,
+				Payload:        payload,
+				Metadata:       []byte(`{}`),
+				CreatedAt:      time.Now(),
 			},
 		}
 

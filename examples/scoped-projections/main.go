@@ -66,6 +66,11 @@ func (p *UserReadModelProjection) AggregateTypes() []string {
 	return []string{"User"}
 }
 
+// BoundedContexts implements ScopedProjection to filter events by bounded context
+func (p *UserReadModelProjection) BoundedContexts() []string {
+	return []string{"Identity"}
+}
+
 //nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
 func (p *UserReadModelProjection) Handle(_ context.Context, event es.PersistedEvent) error {
 	if event.EventType == "UserCreated" {
@@ -93,6 +98,11 @@ func (p *OrderReadModelProjection) Name() string {
 // AggregateTypes implements ScopedProjection to filter events by aggregate type
 func (p *OrderReadModelProjection) AggregateTypes() []string {
 	return []string{"Order"}
+}
+
+// BoundedContexts implements ScopedProjection to filter events by bounded context
+func (p *OrderReadModelProjection) BoundedContexts() []string {
+	return []string{"Sales"}
 }
 
 //nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
@@ -263,7 +273,8 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 
 		events := []es.Event{
 			{
-				AggregateType: "User",
+				BoundedContext: "Identity",
+				AggregateType:  "User",
 				AggregateID:   u.id,
 				EventID:       uuid.New(),
 				EventType:     "UserCreated",
@@ -305,7 +316,8 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 
 		events := []es.Event{
 			{
-				AggregateType: "Order",
+				BoundedContext: "Sales",
+				AggregateType:  "Order",
 				AggregateID:   uuid.New().String(),
 				EventID:       uuid.New(),
 				EventType:     "OrderPlaced",
@@ -346,7 +358,8 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 
 		events := []es.Event{
 			{
-				AggregateType: "Product",
+				BoundedContext: "Catalog",
+				AggregateType:  "Product",
 				AggregateID:   uuid.New().String(),
 				EventID:       uuid.New(),
 				EventType:     "ProductAdded",

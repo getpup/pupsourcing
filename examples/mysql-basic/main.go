@@ -166,14 +166,15 @@ func appendUserEvents(ctx context.Context, db *sql.DB, store *mysql.Store, aggre
 
 		events := []es.Event{
 			{
-				AggregateType: "User",
-				AggregateID:   aggregateID,
-				EventID:       uuid.New(),
-				EventType:     "UserCreated",
-				EventVersion:  1,
-				Payload:       payload,
-				Metadata:      []byte(`{}`),
-				CreatedAt:     time.Now(),
+				BoundedContext: "Identity",
+				AggregateType:  "User",
+				AggregateID:    aggregateID,
+				EventID:        uuid.New(),
+				EventType:      "UserCreated",
+				EventVersion:   1,
+				Payload:        payload,
+				Metadata:       []byte(`{}`),
+				CreatedAt:      time.Now(),
 			},
 		}
 

@@ -113,7 +113,21 @@ go run main.go --workers=4
 
 ### Programmatically
 ```go
-err := runner.RunProjectionPartitions(ctx, db, store, projection, numWorkers)
+// Create runners for each partition
+var runners []runner.ProjectionRunner
+for i := 0; i < numWorkers; i++ {
+    config := projection.DefaultProcessorConfig()
+    config.PartitionKey = i
+    config.TotalPartitions = numWorkers
+    processor := postgres.NewProcessor(db, store, &config)
+    runners = append(runners, runner.ProjectionRunner{
+        Projection: proj,
+        Processor:  processor,
+    })
+}
+
+r := runner.New()
+err := r.Run(ctx, runners)
 ```
 
 ## Production Considerations

@@ -26,7 +26,7 @@ func (p *UserReadModelProjection) AggregateTypes() []string {
     return []string{"User"}  // Only receives User events
 }
 
-func (p *UserReadModelProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *UserReadModelProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
     // Only User events arrive here
     return nil
 }
@@ -51,7 +51,7 @@ func (p *WatermillIntegrationProjection) Name() string {
 }
 
 // Does NOT implement AggregateTypes() - receives ALL events
-func (p *WatermillIntegrationProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *WatermillIntegrationProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
     // ALL events arrive here - publish to message broker
     return nil
 }

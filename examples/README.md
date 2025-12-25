@@ -198,16 +198,60 @@ go run main.go --mode=status
 go run main.go --mode=process
 ```
 
-### 7. [Basic](./basic/)
-**Difficulty:** Beginner  
-**Best for:** Initial setup and exploration
+### 7. [Scoped Projections](./scoped-projections/)
+**Difficulty:** Intermediate  
+**Best for:** Understanding scoped vs global projections
 
-The original simple example showing basic event appending and projection.
+Demonstrates the difference between scoped projections (read models filtering by aggregate type) and global projections (integration/outbox publishers receiving all events).
+
+**What you'll learn:**
+- Scoped projections that filter by aggregate type
+- Global projections that receive all events
+- Use cases for each pattern
+- Running both types concurrently
 
 **Run it:**
 ```bash
-cd basic
-go generate  # Generate migrations
+cd scoped-projections
+go run main.go
+```
+
+### 8. [Custom Logging](./with-logging/)
+**Difficulty:** Beginner  
+**Best for:** Production observability integration
+
+Shows how to integrate custom logging with pupsourcing.
+
+**What you'll learn:**
+- Implementing the `es.Logger` interface
+- Integrating with structured logging libraries
+- Observability hooks for debugging
+- Production logging patterns
+
+**Run it:**
+```bash
+cd with-logging
+go run main.go
+```
+
+## Advanced Examples
+
+### [Event Mapping Code Generation](./eventmap-codegen/)
+**Difficulty:** Advanced  
+**Best for:** Clean architecture, domain-driven design
+
+Demonstrates type-safe mapping between domain events and event sourcing types using code generation.
+
+**What you'll learn:**
+- Pure domain events (no infrastructure dependencies)
+- Versioned events (v1, v2, etc.)
+- Code generation for type-safe mappings
+- Schema evolution patterns
+
+**Run it:**
+```bash
+cd eventmap-codegen
+go generate
 go run main.go
 ```
 
@@ -215,9 +259,9 @@ go run main.go
 
 ### Prerequisites
 
-All examples require:
+Most examples require:
 - Go 1.23 or later
-- PostgreSQL 12+ running locally
+- PostgreSQL 12+ running locally (except SQLite examples which need no database server)
 
 Start PostgreSQL:
 ```bash
@@ -324,8 +368,10 @@ if *partitionKey == -1 {
 
 Make projections safe for reprocessing:
 ```go
-func (p *Projection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
-    _, err := tx.ExecContext(ctx,
+func (p *Projection) Handle(ctx context.Context, event es.PersistedEvent) error {
+    // Get database connection from your application context or use a field
+    // Most projections will update a separate read model database
+    _, err := db.ExecContext(ctx,
         "INSERT INTO read_model (id, data) VALUES ($1, $2)"+
         "ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
         id, data)

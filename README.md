@@ -21,42 +21,6 @@ pupsourcing provides minimal, reliable infrastructure for event sourcing in Go a
 - **Code Generation** - Optional tool for strongly-typed domain event mapping
 - **Minimal Dependencies** - Go standard library plus database driver
 
-## Bounded Contexts
-
-pupsourcing requires all events to belong to a **bounded context**, supporting Domain-Driven Design (DDD) principles. A bounded context is an explicit boundary within which a domain model is defined and applicable.
-
-### Why Bounded Contexts?
-
-- **Domain Isolation**: Different parts of your system (e.g., Identity, Billing, Catalog) can evolve independently
-- **Clear Boundaries**: Events are explicitly scoped, preventing accidental mixing of concerns
-- **Flexible Projections**: Scoped projections can filter by both aggregate type and bounded context
-- **Uniqueness**: Event uniqueness is enforced per `(BoundedContext, AggregateType, AggregateID, AggregateVersion)`
-
-### Example Contexts
-
-```go
-// Identity context - user management
-event := es.Event{
-    BoundedContext: "Identity",
-    AggregateType:  "User",
-    // ...
-}
-
-// Billing context - subscription management
-event := es.Event{
-    BoundedContext: "Billing",
-    AggregateType:  "Subscription",
-    // ...
-}
-
-// Catalog context - product information
-event := es.Event{
-    BoundedContext: "Catalog",
-    AggregateType:  "Product",
-    // ...
-}
-```
-
 ## Installation
 
 ```bash

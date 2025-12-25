@@ -646,22 +646,9 @@ For high-volume systems with multiple bounded contexts, you can leverage Postgre
 Create partitions for each bounded context:
 
 ```sql
--- 1. Create partitioned events table
+-- 1. Create partitioned events table (using your existing schema)
 CREATE TABLE events (
-    event_id UUID NOT NULL,
-    bounded_context TEXT NOT NULL,
-    aggregate_type TEXT NOT NULL,
-    aggregate_id TEXT NOT NULL,
-    aggregate_version BIGINT NOT NULL,
-    event_type TEXT NOT NULL,
-    event_version INT NOT NULL DEFAULT 1,
-    payload BYTEA NOT NULL,
-    metadata BYTEA NOT NULL DEFAULT '\x7b7d'::bytea,
-    global_position BIGSERIAL NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    causation_id TEXT,
-    correlation_id TEXT,
-    trace_id TEXT,
+    -- ... all your event columns here ...
     PRIMARY KEY (bounded_context, aggregate_type, aggregate_id, aggregate_version)
 ) PARTITION BY LIST (bounded_context);
 
@@ -669,34 +656,18 @@ CREATE TABLE events (
 CREATE TABLE events_identity PARTITION OF events
     FOR VALUES IN ('Identity');
 
-CREATE INDEX idx_events_identity_global_position 
-    ON events_identity (global_position);
-CREATE INDEX idx_events_identity_aggregate 
-    ON events_identity (aggregate_type, aggregate_id);
-CREATE INDEX idx_events_identity_created_at 
-    ON events_identity (created_at);
-
 -- 3. Create partition for Billing context
 CREATE TABLE events_billing PARTITION OF events
     FOR VALUES IN ('Billing');
-
-CREATE INDEX idx_events_billing_global_position 
-    ON events_billing (global_position);
-CREATE INDEX idx_events_billing_aggregate 
-    ON events_billing (aggregate_type, aggregate_id);
-CREATE INDEX idx_events_billing_created_at 
-    ON events_billing (created_at);
 
 -- 4. Create partition for Analytics context
 CREATE TABLE events_analytics PARTITION OF events
     FOR VALUES IN ('Analytics');
 
-CREATE INDEX idx_events_analytics_global_position 
-    ON events_analytics (global_position);
-CREATE INDEX idx_events_analytics_aggregate 
-    ON events_analytics (aggregate_type, aggregate_id);
-CREATE INDEX idx_events_analytics_created_at 
-    ON events_analytics (created_at);
+-- Add indexes per partition for query performance
+CREATE INDEX idx_events_identity_global_position ON events_identity (global_position);
+CREATE INDEX idx_events_billing_global_position ON events_billing (global_position);
+CREATE INDEX idx_events_analytics_global_position ON events_analytics (global_position);
 
 -- 5. Partition aggregate_heads similarly
 CREATE TABLE aggregate_heads (
@@ -779,9 +750,10 @@ CREATE TABLE events_billing PARTITION OF events
 ```
 
 **When to use subpartitions:**
-- Individual bounded context exceeds 100M events
-- Multiple high-volume aggregate types within the same context
-- Different aggregate types have different access patterns
+- Query latency on individual bounded context partitions becomes unacceptable for your use case
+- Write throughput to a single context partition approaches database limits
+- Multiple high-volume aggregate types within the same context would benefit from physical separation
+- Different aggregate types have significantly different access patterns or retention needs
 
 #### Multi-Column Hash Partitioning
 
@@ -793,12 +765,15 @@ CREATE TABLE events (
     -- columns as before
 ) PARTITION BY HASH (bounded_context, aggregate_type, aggregate_id);
 
--- Create 16 partitions for even distribution
-CREATE TABLE events_00 PARTITION OF events FOR VALUES WITH (MODULUS 16, REMAINDER 0);
-CREATE TABLE events_01 PARTITION OF events FOR VALUES WITH (MODULUS 16, REMAINDER 1);
-CREATE TABLE events_02 PARTITION OF events FOR VALUES WITH (MODULUS 16, REMAINDER 2);
--- ... continue for all 16 partitions
-CREATE TABLE events_15 PARTITION OF events FOR VALUES WITH (MODULUS 16, REMAINDER 15);
+-- PostgreSQL automatically distributes data across hash partitions
+-- Create 16 partitions for even distribution using a loop
+DO $$
+BEGIN
+    FOR i IN 0..15 LOOP
+        EXECUTE format('CREATE TABLE events_%s PARTITION OF events FOR VALUES WITH (MODULUS 16, REMAINDER %s)', 
+                       LPAD(i::text, 2, '0'), i);
+    END LOOP;
+END $$;
 ```
 
 **Benefit:** Automatic load balancing across partitions without managing per-context partitions.

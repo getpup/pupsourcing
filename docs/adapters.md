@@ -77,7 +77,8 @@ db, _ := sql.Open("postgres", connString)
 tx, _ := db.BeginTx(ctx, nil)
 result, err := store.Append(ctx, tx, es.NoStream(), events)
 tx.Commit()
-```
+
+// Generate migrations
 err := migrations.GeneratePostgres(&config)
 ```
 

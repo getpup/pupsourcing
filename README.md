@@ -139,14 +139,16 @@ func (p *UserReadModelProjection) AggregateTypes() []string {
     return []string{"User"}  // Only receives User events
 }
 
-func (p *UserReadModelProjection) Handle(ctx context.Context, tx es.DBTX, event es.PersistedEvent) error {
+func (p *UserReadModelProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
     // Update read model based on User events only
+    // Projection manages its own persistence
     return nil
 }
 
-// Run projection
+// Run projection with adapter-specific processor
+store := postgres.NewStore(postgres.DefaultStoreConfig())
 config := projection.DefaultProcessorConfig()
-processor := projection.NewProcessor(db, store, &config)
+processor := postgres.NewProcessor(db, store, &config)
 err := processor.Run(ctx, &UserReadModelProjection{})
 ```
 

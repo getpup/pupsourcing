@@ -124,7 +124,7 @@ func (p *WatermillPublisher) Handle(ctx context.Context, event es.PersistedEvent
 ```
 
 **When to use:**
-- Message broker integrations (Watermill, Kafka, RabbitMQ)
+- Message broker integrations (Kafka, RabbitMQ)
 - Outbox pattern implementations
 - Complete audit trails
 - Cross-aggregate analytics
@@ -257,8 +257,24 @@ Run multiple partitions in the same process using goroutines:
 ```go
 import "github.com/getpup/pupsourcing/es/projection/runner"
 
-// Run 4 partitions in the same process
-err := runner.RunProjectionPartitions(ctx, db, store, projection, 4)
+store := postgres.NewStore(postgres.DefaultStoreConfig())
+
+// Create 4 processors with different partition keys
+runners := make([]runner.ProjectionRunner, 4)
+for i := 0; i < 4; i++ {
+    config := projection.DefaultProcessorConfig()
+    config.PartitionKey = i
+    config.TotalPartitions = 4
+    processor := postgres.NewProcessor(db, store, &config)
+    runners[i] = runner.ProjectionRunner{
+        Projection: projection,
+        Processor:  processor,
+    }
+}
+
+// Run all partitions concurrently
+r := runner.New()
+err := r.Run(ctx, runners)
 ```
 
 **⚠️ Thread Safety Warning:** When using worker pools, all workers share the same projection instance. If your projection maintains state, it MUST be thread-safe:
@@ -370,22 +386,21 @@ Run multiple projections in the same process:
 ```go
 import "github.com/getpup/pupsourcing/es/projection/runner"
 
-configs := []runner.ProjectionConfig{
-    {
-        Projection: &UserCounterProjection{},
-        ProcessorConfig: projection.DefaultProcessorConfig(),
-    },
-    {
-        Projection: &EmailSenderProjection{},
-        ProcessorConfig: projection.DefaultProcessorConfig(),
-    },
-    {
-        Projection: &AnalyticsProjection{},
-        ProcessorConfig: projection.DefaultProcessorConfig(),
-    },
-}
+store := postgres.NewStore(postgres.DefaultStoreConfig())
 
-err := runner.RunMultipleProjections(ctx, db, store, configs)
+// Create processor for each projection
+config := projection.DefaultProcessorConfig()
+
+processor1 := postgres.NewProcessor(db, store, &config)
+processor2 := postgres.NewProcessor(db, store, &config)
+processor3 := postgres.NewProcessor(db, store, &config)
+
+r := runner.New()
+err := r.Run(ctx, []runner.ProjectionRunner{
+    {Projection: &UserCounterProjection{}, Processor: processor1},
+    {Projection: &EmailSenderProjection{}, Processor: processor2},
+    {Projection: &AnalyticsProjection{}, Processor: processor3},
+})
 ```
 
 See [multiple-projections example](../examples/multiple-projections/) for details.
@@ -488,13 +503,37 @@ See [scaling example](../examples/scaling/) for a demonstration.
 Run critical projections with more resources:
 
 ```go
+store := postgres.NewStore(postgres.DefaultStoreConfig())
+
 // Critical: User data (4 workers)
-runner.RunProjectionPartitions(ctx, db, store, &UserProjection{}, 4)
+userRunners := make([]runner.ProjectionRunner, 4)
+for i := 0; i < 4; i++ {
+    config := projection.DefaultProcessorConfig()
+    config.PartitionKey = i
+    config.TotalPartitions = 4
+    processor := postgres.NewProcessor(db, store, &config)
+    userRunners[i] = runner.ProjectionRunner{
+        Projection: &UserProjection{},
+        Processor:  processor,
+    }
+}
 
 // Normal: Analytics (2 workers, separate process)
-runner.RunProjectionPartitions(ctx, db, store, &AnalyticsProjection{}, 2)
+analyticsRunners := make([]runner.ProjectionRunner, 2)
+for i := 0; i < 2; i++ {
+    config := projection.DefaultProcessorConfig()
+    config.PartitionKey = i
+    config.TotalPartitions = 2
+    processor := postgres.NewProcessor(db, store, &config)
+    analyticsRunners[i] = runner.ProjectionRunner{
+        Projection: &AnalyticsProjection{},
+        Processor:  processor,
+    }
+}
 
 // Low priority: Reports (1 worker, best-effort)
+config := projection.DefaultProcessorConfig()
+processor := postgres.NewProcessor(db, store, &config)
 processor.Run(ctx, &ReportProjection{})
 ```
 

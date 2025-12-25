@@ -430,17 +430,24 @@ func runProjections() {
     partitionKey := flag.Int("partition-key", -1, "Partition key for scaled projections")
     flag.Parse()
     
-    configs := []runner.ProjectionConfig{
-        // Fast projections - run unpartitioned
-        {
-            Projection: &FastProjection1{},
-            ProcessorConfig: projection.DefaultProcessorConfig(),
-        },
-        {
-            Projection: &FastProjection2{},
-            ProcessorConfig: projection.DefaultProcessorConfig(),
-        },
-    }
+    store := postgres.NewStore(postgres.DefaultStoreConfig())
+    
+    var runners []runner.ProjectionRunner
+    
+    // Fast projections - run unpartitioned
+    config1 := projection.DefaultProcessorConfig()
+    processor1 := postgres.NewProcessor(db, store, &config1)
+    runners = append(runners, runner.ProjectionRunner{
+        Projection: &FastProjection1{},
+        Processor:  processor1,
+    })
+    
+    config2 := projection.DefaultProcessorConfig()
+    processor2 := postgres.NewProcessor(db, store, &config2)
+    runners = append(runners, runner.ProjectionRunner{
+        Projection: &FastProjection2{},
+        Processor:  processor2,
+    })
     
     // Slow projection - only if partition key provided
     if *partitionKey >= 0 {
@@ -448,13 +455,15 @@ func runProjections() {
         config.PartitionKey = *partitionKey
         config.TotalPartitions = 4
         
-        configs = append(configs, runner.ProjectionConfig{
+        processor := postgres.NewProcessor(db, store, &config)
+        runners = append(runners, runner.ProjectionRunner{
             Projection: &SlowProjection{},
-            ProcessorConfig: config,
+            Processor:  processor,
         })
     }
     
-    runner.RunMultipleProjections(ctx, db, store, store, configs)
+    r := runner.New()
+    r.Run(ctx, runners)
 }
 ```
 

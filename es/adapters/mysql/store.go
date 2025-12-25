@@ -41,6 +41,54 @@ func DefaultStoreConfig() StoreConfig {
 	}
 }
 
+// StoreOption is a functional option for configuring a Store.
+type StoreOption func(*StoreConfig)
+
+// WithLogger sets a logger for the store.
+func WithLogger(logger es.Logger) StoreOption {
+	return func(c *StoreConfig) {
+		c.Logger = logger
+	}
+}
+
+// WithEventsTable sets a custom events table name.
+func WithEventsTable(tableName string) StoreOption {
+	return func(c *StoreConfig) {
+		c.EventsTable = tableName
+	}
+}
+
+// WithCheckpointsTable sets a custom projection checkpoints table name.
+func WithCheckpointsTable(tableName string) StoreOption {
+	return func(c *StoreConfig) {
+		c.CheckpointsTable = tableName
+	}
+}
+
+// WithAggregateHeadsTable sets a custom aggregate heads table name.
+func WithAggregateHeadsTable(tableName string) StoreOption {
+	return func(c *StoreConfig) {
+		c.AggregateHeadsTable = tableName
+	}
+}
+
+// NewStoreConfig creates a new store configuration with functional options.
+// It starts with the default configuration and applies the given options.
+//
+// Example:
+//
+//	config := mysql.NewStoreConfig(
+//	    mysql.WithLogger(myLogger),
+//	    mysql.WithEventsTable("custom_events"),
+//	)
+func NewStoreConfig(opts ...StoreOption) StoreConfig {
+	config := DefaultStoreConfig()
+	for _, opt := range opts {
+		opt(&config)
+	}
+	return config
+}
+
 // Store is a MySQL-backed event store implementation.
 type Store struct {
 	config StoreConfig

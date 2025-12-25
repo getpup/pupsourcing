@@ -191,20 +191,20 @@ make test-integration-local
 ```
 
 This command automatically:
-1. Starts PostgreSQL and MySQL containers via docker-compose
+1. Starts PostgreSQL and MySQL containers via `docker compose`
 2. Runs all integration tests
 3. Cleans up containers
 
 **Manual integration testing:**
 ```bash
 # Start databases
-docker-compose up -d
+docker compose up -d
 
 # Run integration tests
 make test-integration
 
 # Stop databases
-docker-compose down
+docker compose down
 ```
 
 ## Contributing

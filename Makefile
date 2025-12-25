@@ -15,15 +15,15 @@ test-integration: ## Run integration tests (requires databases)
 	go test -p 1 -v -tags=integration ./es/adapters/postgres/integration_test/... ./es/projection/integration_test/... ./es/projection/runner/integration_test/...
 
 test-integration-local: ## Start databases and run integration tests locally
-	@echo "Starting databases with docker-compose..."
-	docker-compose up -d
+	@echo "Starting databases with docker compose..."
+	docker compose up -d
 	@echo "Waiting for databases to be ready..."
 	@sleep 5
 	@echo "Running integration tests..."
 	POSTGRES_HOST=localhost POSTGRES_PORT=5432 POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres POSTGRES_DB=pupsourcing_test \
 	go test -p 1 -v -tags=integration ./es/adapters/postgres/integration_test/... ./es/projection/integration_test/... ./es/projection/runner/integration_test/... || true
 	@echo "Stopping databases..."
-	docker-compose down
+	docker compose down
 
 lint: ## Run linter
 	golangci-lint run --timeout=5m

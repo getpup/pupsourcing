@@ -33,9 +33,9 @@ func (m *mockProjection) Handle(_ context.Context, _ es.PersistedEvent) error {
 
 // mockProcessor implements projection.ProcessorRunner for testing
 type mockProcessor struct {
+	projName   string
 	runCalled  bool
 	shouldFail bool
-	projName   string
 }
 
 func (m *mockProcessor) Run(_ context.Context, proj projection.Projection) error {

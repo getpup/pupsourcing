@@ -24,6 +24,8 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
+	"github.com/getpup/pupsourcing/es/projection"
+
 	"github.com/getpup/pupsourcing/es"
 	"github.com/getpup/pupsourcing/es/adapters/postgres"
 	"github.com/getpup/pupsourcing/es/projection/runner"

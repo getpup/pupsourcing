@@ -275,13 +275,13 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 			{
 				BoundedContext: "Identity",
 				AggregateType:  "User",
-				AggregateID:   u.id,
-				EventID:       uuid.New(),
-				EventType:     "UserCreated",
-				EventVersion:  1,
-				Payload:       payload,
-				Metadata:      []byte(`{}`),
-				CreatedAt:     time.Now(),
+				AggregateID:    u.id,
+				EventID:        uuid.New(),
+				EventType:      "UserCreated",
+				EventVersion:   1,
+				Payload:        payload,
+				Metadata:       []byte(`{}`),
+				CreatedAt:      time.Now(),
 			},
 		}
 
@@ -318,13 +318,13 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 			{
 				BoundedContext: "Sales",
 				AggregateType:  "Order",
-				AggregateID:   uuid.New().String(),
-				EventID:       uuid.New(),
-				EventType:     "OrderPlaced",
-				EventVersion:  1,
-				Payload:       payload,
-				Metadata:      []byte(`{}`),
-				CreatedAt:     time.Now(),
+				AggregateID:    uuid.New().String(),
+				EventID:        uuid.New(),
+				EventType:      "OrderPlaced",
+				EventVersion:   1,
+				Payload:        payload,
+				Metadata:       []byte(`{}`),
+				CreatedAt:      time.Now(),
 			},
 		}
 
@@ -360,13 +360,13 @@ func appendSampleEvents(ctx context.Context, db *sql.DB, store *postgres.Store) 
 			{
 				BoundedContext: "Catalog",
 				AggregateType:  "Product",
-				AggregateID:   uuid.New().String(),
-				EventID:       uuid.New(),
-				EventType:     "ProductAdded",
-				EventVersion:  1,
-				Payload:       payload,
-				Metadata:      []byte(`{}`),
-				CreatedAt:     time.Now(),
+				AggregateID:    uuid.New().String(),
+				EventID:        uuid.New(),
+				EventType:      "ProductAdded",
+				EventVersion:   1,
+				Payload:        payload,
+				Metadata:       []byte(`{}`),
+				CreatedAt:      time.Now(),
 			},
 		}
 

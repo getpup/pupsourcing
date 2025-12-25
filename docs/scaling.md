@@ -66,6 +66,11 @@ func (p *UserCountProjection) AggregateTypes() []string {
     return []string{"User"}
 }
 
+// BoundedContexts filters by context - only Identity context events
+func (p *UserCountProjection) BoundedContexts() []string {
+    return []string{"Identity"}
+}
+
 func (p *UserCountProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
     // Only User events arrive here - no need to check EventType for other aggregates
     switch event.EventType {
@@ -596,7 +601,7 @@ For long-lived aggregates, consider snapshots:
 ```go
 // Read from snapshot position
 snapshotVersion := int64(1000)
-recentEvents, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, &snapshotVersion, nil)
+recentEvents, err := store.ReadAggregateStream(ctx, tx, "Identity", "User", aggregateID, &snapshotVersion, nil)
 ```
 
 ### Error Handling
@@ -617,6 +622,309 @@ func (p *MyProjection) Handle(ctx context.Context, event es.PersistedEvent) erro
     return nil
 }
 ```
+
+### Database Partitioning by Bounded Context
+
+For high-volume systems with multiple bounded contexts, you can leverage PostgreSQL's table partitioning to improve query performance and data management. This is particularly useful when different contexts have different scaling characteristics or retention policies.
+
+#### Why Partition by Bounded Context?
+
+**Benefits:**
+- **Improved Query Performance**: Queries filtering by bounded context only scan relevant partitions
+- **Independent Scaling**: Different contexts can have different storage strategies
+- **Flexible Retention**: Apply different retention policies per context (e.g., keep Identity events longer than Analytics)
+- **Maintenance Efficiency**: Backup, restore, or vacuum individual contexts independently
+- **Clear Data Boundaries**: Physical separation reinforces logical domain boundaries
+
+**Example Scenario:**
+- **Identity** context: 1M events/day, retain 7 years for compliance
+- **Billing** context: 500K events/day, retain 10 years for audit
+- **Analytics** context: 5M events/day, retain 90 days for operational insights
+
+#### PostgreSQL List Partitioning by Bounded Context
+
+Create partitions for each bounded context:
+
+```sql
+-- 1. Create partitioned events table
+CREATE TABLE events (
+    event_id UUID NOT NULL,
+    bounded_context TEXT NOT NULL,
+    aggregate_type TEXT NOT NULL,
+    aggregate_id TEXT NOT NULL,
+    aggregate_version BIGINT NOT NULL,
+    event_type TEXT NOT NULL,
+    event_version INT NOT NULL DEFAULT 1,
+    payload BYTEA NOT NULL,
+    metadata BYTEA NOT NULL DEFAULT '\x7b7d'::bytea,
+    global_position BIGSERIAL NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    causation_id TEXT,
+    correlation_id TEXT,
+    trace_id TEXT,
+    PRIMARY KEY (bounded_context, aggregate_type, aggregate_id, aggregate_version)
+) PARTITION BY LIST (bounded_context);
+
+-- 2. Create partition for Identity context
+CREATE TABLE events_identity PARTITION OF events
+    FOR VALUES IN ('Identity');
+
+CREATE INDEX idx_events_identity_global_position 
+    ON events_identity (global_position);
+CREATE INDEX idx_events_identity_aggregate 
+    ON events_identity (aggregate_type, aggregate_id);
+CREATE INDEX idx_events_identity_created_at 
+    ON events_identity (created_at);
+
+-- 3. Create partition for Billing context
+CREATE TABLE events_billing PARTITION OF events
+    FOR VALUES IN ('Billing');
+
+CREATE INDEX idx_events_billing_global_position 
+    ON events_billing (global_position);
+CREATE INDEX idx_events_billing_aggregate 
+    ON events_billing (aggregate_type, aggregate_id);
+CREATE INDEX idx_events_billing_created_at 
+    ON events_billing (created_at);
+
+-- 4. Create partition for Analytics context
+CREATE TABLE events_analytics PARTITION OF events
+    FOR VALUES IN ('Analytics');
+
+CREATE INDEX idx_events_analytics_global_position 
+    ON events_analytics (global_position);
+CREATE INDEX idx_events_analytics_aggregate 
+    ON events_analytics (aggregate_type, aggregate_id);
+CREATE INDEX idx_events_analytics_created_at 
+    ON events_analytics (created_at);
+
+-- 5. Partition aggregate_heads similarly
+CREATE TABLE aggregate_heads (
+    bounded_context TEXT NOT NULL,
+    aggregate_type TEXT NOT NULL,
+    aggregate_id TEXT NOT NULL,
+    aggregate_version BIGINT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (bounded_context, aggregate_type, aggregate_id)
+) PARTITION BY LIST (bounded_context);
+
+CREATE TABLE aggregate_heads_identity PARTITION OF aggregate_heads
+    FOR VALUES IN ('Identity');
+CREATE TABLE aggregate_heads_billing PARTITION OF aggregate_heads
+    FOR VALUES IN ('Billing');
+CREATE TABLE aggregate_heads_analytics PARTITION OF aggregate_heads
+    FOR VALUES IN ('Analytics');
+```
+
+**Query Performance Improvement:**
+```sql
+-- Without partitioning: Full table scan
+SELECT * FROM events WHERE bounded_context = 'Identity' AND aggregate_type = 'User';
+
+-- With partitioning: Only scans events_identity partition
+SELECT * FROM events WHERE bounded_context = 'Identity' AND aggregate_type = 'User';
+-- PostgreSQL automatically routes to events_identity partition
+```
+
+#### Adding New Bounded Contexts
+
+When adding a new bounded context, create its partition:
+
+```sql
+-- Add new "Catalog" context
+CREATE TABLE events_catalog PARTITION OF events
+    FOR VALUES IN ('Catalog');
+
+CREATE INDEX idx_events_catalog_global_position 
+    ON events_catalog (global_position);
+CREATE INDEX idx_events_catalog_aggregate 
+    ON events_catalog (aggregate_type, aggregate_id);
+CREATE INDEX idx_events_catalog_created_at 
+    ON events_catalog (created_at);
+
+CREATE TABLE aggregate_heads_catalog PARTITION OF aggregate_heads
+    FOR VALUES IN ('Catalog');
+```
+
+**⚠️ Important:** You must create a partition before writing events to that bounded context, otherwise PostgreSQL will reject the insert.
+
+#### Hash Partitioning with Subpartitions
+
+For contexts with extremely high volume, combine bounded context partitioning with hash-based subpartitioning:
+
+```sql
+-- Events table partitioned by bounded context
+CREATE TABLE events (
+    -- columns as before
+    PRIMARY KEY (bounded_context, aggregate_type, aggregate_id, aggregate_version)
+) PARTITION BY LIST (bounded_context);
+
+-- Identity partition with hash subpartitions on aggregate_type
+CREATE TABLE events_identity PARTITION OF events
+    FOR VALUES IN ('Identity')
+    PARTITION BY HASH (aggregate_type);
+
+CREATE TABLE events_identity_0 PARTITION OF events_identity
+    FOR VALUES WITH (MODULUS 4, REMAINDER 0);
+CREATE TABLE events_identity_1 PARTITION OF events_identity
+    FOR VALUES WITH (MODULUS 4, REMAINDER 1);
+CREATE TABLE events_identity_2 PARTITION OF events_identity
+    FOR VALUES WITH (MODULUS 4, REMAINDER 2);
+CREATE TABLE events_identity_3 PARTITION OF events_identity
+    FOR VALUES WITH (MODULUS 4, REMAINDER 3);
+
+-- Billing partition without subpartitioning (lower volume)
+CREATE TABLE events_billing PARTITION OF events
+    FOR VALUES IN ('Billing');
+```
+
+**When to use subpartitions:**
+- Individual bounded context exceeds 100M events
+- Multiple high-volume aggregate types within the same context
+- Different aggregate types have different access patterns
+
+#### Multi-Column Hash Partitioning
+
+For even distribution across multiple dimensions:
+
+```sql
+-- Composite hash on (bounded_context, aggregate_type, aggregate_id)
+CREATE TABLE events (
+    -- columns as before
+) PARTITION BY HASH (bounded_context, aggregate_type, aggregate_id);
+
+-- Create 16 partitions for even distribution
+CREATE TABLE events_00 PARTITION OF events FOR VALUES WITH (MODULUS 16, REMAINDER 0);
+CREATE TABLE events_01 PARTITION OF events FOR VALUES WITH (MODULUS 16, REMAINDER 1);
+CREATE TABLE events_02 PARTITION OF events FOR VALUES WITH (MODULUS 16, REMAINDER 2);
+-- ... continue for all 16 partitions
+CREATE TABLE events_15 PARTITION OF events FOR VALUES WITH (MODULUS 16, REMAINDER 15);
+```
+
+**Benefit:** Automatic load balancing across partitions without managing per-context partitions.
+
+**Trade-off:** Lose ability to manage contexts independently (e.g., different retention policies).
+
+#### Migration Strategy
+
+To migrate from non-partitioned to partitioned tables:
+
+```sql
+-- 1. Create new partitioned table
+CREATE TABLE events_partitioned (
+    -- same columns as events
+) PARTITION BY LIST (bounded_context);
+
+-- 2. Create partitions for each context
+-- (as shown above)
+
+-- 3. Copy data in batches
+INSERT INTO events_partitioned
+SELECT * FROM events
+WHERE bounded_context = 'Identity'
+LIMIT 100000;
+-- Repeat until all Identity events migrated
+-- Then repeat for other contexts
+
+-- 4. Swap tables (in transaction)
+BEGIN;
+ALTER TABLE events RENAME TO events_old;
+ALTER TABLE events_partitioned RENAME TO events;
+COMMIT;
+
+-- 5. Verify and drop old table
+DROP TABLE events_old;
+```
+
+#### Partition Maintenance
+
+**Detach old partitions for archival:**
+```sql
+-- Detach Analytics partition for archival (after 90 days)
+ALTER TABLE events DETACH PARTITION events_analytics;
+
+-- Archive to cold storage
+pg_dump -t events_analytics > analytics_archive.sql
+
+-- Drop or keep as standalone table
+DROP TABLE events_analytics;
+```
+
+**Attach archived partition for historical queries:**
+```sql
+-- Restore from archive
+psql -f analytics_archive.sql
+
+-- Reattach
+ALTER TABLE events ATTACH PARTITION events_analytics
+    FOR VALUES IN ('Analytics');
+```
+
+#### Application Code Considerations
+
+**No changes required in pupsourcing code** - partitioning is transparent:
+
+```go
+// Same code works with or without partitioning
+events := []es.Event{
+    {
+        BoundedContext: "Identity",  // Routes to events_identity partition
+        AggregateType:  "User",
+        AggregateID:    userID,
+        // ...
+    },
+}
+
+result, err := store.Append(ctx, tx, es.NoStream(), events)
+```
+
+**For ScopedProjection filtering:**
+```go
+// Projection automatically benefits from partition pruning
+func (p *UserReadModel) BoundedContexts() []string {
+    return []string{"Identity"}  // PostgreSQL only scans events_identity
+}
+
+func (p *UserReadModel) AggregateTypes() []string {
+    return []string{"User"}
+}
+```
+
+#### Monitoring Partition Performance
+
+```sql
+-- Check partition sizes
+SELECT
+    schemaname,
+    tablename,
+    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+FROM pg_tables
+WHERE tablename LIKE 'events_%'
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+
+-- Verify partition pruning in queries
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM events
+WHERE bounded_context = 'Identity' AND aggregate_type = 'User';
+-- Should show "Partitions removed: N" in output
+```
+
+#### Best Practices
+
+1. **Plan contexts upfront**: Adding partitions is easy, but reorganizing is expensive
+2. **Create partitions before use**: Inserts fail if partition doesn't exist
+3. **Index each partition separately**: Indexes are not inherited automatically
+4. **Monitor partition sizes**: Rebalance if one partition grows disproportionately
+5. **Use consistent naming**: `events_{context_name_lower}` for clarity
+6. **Document retention policies**: Make context-specific rules explicit
+7. **Test migrations**: Always test partition changes on staging first
+
+#### When NOT to Partition
+
+- **Few contexts (<3)**: Overhead outweighs benefits
+- **Low volume (<10M events total)**: Partitioning adds complexity without gains
+- **Uniform access patterns**: If all queries scan all contexts, partitioning doesn't help
+- **Small team**: Operational complexity may not be worth it
 
 ## See Also
 

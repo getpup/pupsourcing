@@ -81,14 +81,15 @@ Events are appended within a transaction:
 ```go
 events := []es.Event{
     {
-        AggregateType: "User",
-        AggregateID:   aggregateID,
-        EventID:       uuid.New(),
-        EventType:     "UserCreated",
-        EventVersion:  1,
-        Payload:       payload,
-        Metadata:      []byte(`{}`),
-        CreatedAt:     time.Now(),
+        BoundedContext: "Identity",  // Required: scope to bounded context
+        AggregateType:  "User",
+        AggregateID:    aggregateID,
+        EventID:        uuid.New(),
+        EventType:      "UserCreated",
+        EventVersion:   1,
+        Payload:        payload,
+        Metadata:       []byte(`{}`),
+        CreatedAt:      time.Now(),
     },
 }
 

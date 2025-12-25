@@ -55,8 +55,9 @@ func (p *Processor) Run(ctx context.Context, proj projection.Projection) error {
 			"batch_size", p.config.BatchSize)
 	}
 
-	// Build aggregate type filter once for the projection (not per batch)
+	// Build aggregate type and bounded context filters once for the projection (not per batch)
 	aggregateTypeFilter := buildAggregateTypeFilter(proj)
+	boundedContextFilter := buildBoundedContextFilter(proj)
 
 	for {
 		select {
@@ -71,7 +72,7 @@ func (p *Processor) Run(ctx context.Context, proj projection.Projection) error {
 		}
 
 		// Process batch in transaction
-		err := p.processBatch(ctx, proj, aggregateTypeFilter)
+		err := p.processBatch(ctx, proj, aggregateTypeFilter, boundedContextFilter)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) || err.Error() == "no events in batch" {
 				// No events available, continue polling
@@ -107,10 +108,30 @@ func buildAggregateTypeFilter(proj projection.Projection) map[string]bool {
 	return filter
 }
 
-// shouldProcessEvent checks if an event should be processed based on partition and aggregate type filters.
+// buildBoundedContextFilter builds a filter map for scoped projections with bounded contexts.
+// Returns nil if the projection is not scoped or has an empty bounded contexts list.
+func buildBoundedContextFilter(proj projection.Projection) map[string]bool {
+	scopedProj, ok := proj.(projection.ScopedProjection)
+	if !ok {
+		return nil
+	}
+
+	contexts := scopedProj.BoundedContexts()
+	if len(contexts) == 0 {
+		return nil
+	}
+
+	filter := make(map[string]bool, len(contexts))
+	for _, ctx := range contexts {
+		filter[ctx] = true
+	}
+	return filter
+}
+
+// shouldProcessEvent checks if an event should be processed based on partition, aggregate type, and bounded context filters.
 //
 //nolint:gocritic // hugeParam: Intentionally pass by value to match event processing pattern
-func (p *Processor) shouldProcessEvent(event es.PersistedEvent, aggregateTypeFilter map[string]bool) bool {
+func (p *Processor) shouldProcessEvent(event es.PersistedEvent, aggregateTypeFilter, boundedContextFilter map[string]bool) bool {
 	// Apply partition filter
 	if !p.config.PartitionStrategy.ShouldProcess(
 		event.AggregateID,
@@ -125,10 +146,15 @@ func (p *Processor) shouldProcessEvent(event es.PersistedEvent, aggregateTypeFil
 		return false
 	}
 
+	// Apply bounded context filter if projection is scoped
+	if boundedContextFilter != nil && !boundedContextFilter[event.BoundedContext] {
+		return false
+	}
+
 	return true
 }
 
-func (p *Processor) processBatch(ctx context.Context, proj projection.Projection, aggregateTypeFilter map[string]bool) error {
+func (p *Processor) processBatch(ctx context.Context, proj projection.Projection, aggregateTypeFilter, boundedContextFilter map[string]bool) error {
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -175,7 +201,7 @@ func (p *Processor) processBatch(ctx context.Context, proj projection.Projection
 		event := events[i]
 
 		// Check if event should be processed
-		if !p.shouldProcessEvent(event, aggregateTypeFilter) {
+		if !p.shouldProcessEvent(event, aggregateTypeFilter, boundedContextFilter) {
 			lastPosition = event.GlobalPosition
 			skippedCount++
 			continue

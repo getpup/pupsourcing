@@ -62,6 +62,7 @@ func generatePostgresSQL(config *Config) string {
 -- Events table stores all domain events in append-only fashion
 CREATE TABLE IF NOT EXISTS %s (
     global_position BIGSERIAL PRIMARY KEY,
+    bounded_context TEXT NOT NULL,
     aggregate_type TEXT NOT NULL,
     aggregate_id TEXT NOT NULL,
     aggregate_version BIGINT NOT NULL,
@@ -75,13 +76,13 @@ CREATE TABLE IF NOT EXISTS %s (
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     
-    -- Ensure version uniqueness per aggregate
-    UNIQUE (aggregate_type, aggregate_id, aggregate_version)
+    -- Ensure version uniqueness per aggregate within bounded context
+    UNIQUE (bounded_context, aggregate_type, aggregate_id, aggregate_version)
 );
 
 -- Index for aggregate stream reads
 CREATE INDEX IF NOT EXISTS idx_%s_aggregate 
-    ON %s (aggregate_type, aggregate_id, aggregate_version);
+    ON %s (bounded_context, aggregate_type, aggregate_id, aggregate_version);
 
 -- Index for event type queries
 CREATE INDEX IF NOT EXISTS idx_%s_event_type 
@@ -93,14 +94,15 @@ CREATE INDEX IF NOT EXISTS idx_%s_correlation
 
 -- Aggregate heads table tracks the current version of each aggregate
 -- Provides O(1) version lookup for event append operations
--- Primary key (aggregate_type, aggregate_id) ensures one row per aggregate
+-- Primary key (bounded_context, aggregate_type, aggregate_id) ensures one row per aggregate
 CREATE TABLE IF NOT EXISTS %s (
+    bounded_context TEXT NOT NULL,
     aggregate_type TEXT NOT NULL,
     aggregate_id TEXT NOT NULL,
     aggregate_version BIGINT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     
-    PRIMARY KEY (aggregate_type, aggregate_id)
+    PRIMARY KEY (bounded_context, aggregate_type, aggregate_id)
 );
 
 -- Index for observability
@@ -154,6 +156,7 @@ func generateSQLiteSQL(config *Config) string {
 -- Events table stores all domain events in append-only fashion
 CREATE TABLE IF NOT EXISTS %s (
     global_position INTEGER PRIMARY KEY AUTOINCREMENT,
+    bounded_context TEXT NOT NULL,
     aggregate_type TEXT NOT NULL,
     aggregate_id TEXT NOT NULL,
     aggregate_version INTEGER NOT NULL,
@@ -167,13 +170,13 @@ CREATE TABLE IF NOT EXISTS %s (
     metadata TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     
-    -- Ensure version uniqueness per aggregate
-    UNIQUE (aggregate_type, aggregate_id, aggregate_version)
+    -- Ensure version uniqueness per aggregate within bounded context
+    UNIQUE (bounded_context, aggregate_type, aggregate_id, aggregate_version)
 );
 
 -- Index for aggregate stream reads
 CREATE INDEX IF NOT EXISTS idx_%s_aggregate 
-    ON %s (aggregate_type, aggregate_id, aggregate_version);
+    ON %s (bounded_context, aggregate_type, aggregate_id, aggregate_version);
 
 -- Index for event type queries
 CREATE INDEX IF NOT EXISTS idx_%s_event_type 
@@ -185,14 +188,15 @@ CREATE INDEX IF NOT EXISTS idx_%s_correlation
 
 -- Aggregate heads table tracks the current version of each aggregate
 -- Provides O(1) version lookup for event append operations
--- Primary key (aggregate_type, aggregate_id) ensures one row per aggregate
+-- Primary key (bounded_context, aggregate_type, aggregate_id) ensures one row per aggregate
 CREATE TABLE IF NOT EXISTS %s (
+    bounded_context TEXT NOT NULL,
     aggregate_type TEXT NOT NULL,
     aggregate_id TEXT NOT NULL,
     aggregate_version INTEGER NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     
-    PRIMARY KEY (aggregate_type, aggregate_id)
+    PRIMARY KEY (bounded_context, aggregate_type, aggregate_id)
 );
 
 -- Index for observability
@@ -246,6 +250,7 @@ func generateMySQLSQL(config *Config) string {
 -- Events table stores all domain events in append-only fashion
 CREATE TABLE IF NOT EXISTS %s (
     global_position BIGINT AUTO_INCREMENT PRIMARY KEY,
+    bounded_context VARCHAR(255) NOT NULL,
     aggregate_type VARCHAR(255) NOT NULL,
     aggregate_id VARCHAR(255) NOT NULL,
     aggregate_version BIGINT NOT NULL,
@@ -259,13 +264,13 @@ CREATE TABLE IF NOT EXISTS %s (
     metadata JSON,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     
-    -- Ensure version uniqueness per aggregate
-    UNIQUE KEY unique_aggregate_version (aggregate_type, aggregate_id, aggregate_version)
+    -- Ensure version uniqueness per aggregate within bounded context
+    UNIQUE KEY unique_aggregate_version (bounded_context, aggregate_type, aggregate_id, aggregate_version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Index for aggregate stream reads
 CREATE INDEX idx_%s_aggregate 
-    ON %s (aggregate_type, aggregate_id, aggregate_version);
+    ON %s (bounded_context, aggregate_type, aggregate_id, aggregate_version);
 
 -- Index for event type queries
 CREATE INDEX idx_%s_event_type 
@@ -277,14 +282,15 @@ CREATE INDEX idx_%s_correlation
 
 -- Aggregate heads table tracks the current version of each aggregate
 -- Provides O(1) version lookup for event append operations
--- Primary key (aggregate_type, aggregate_id) ensures one row per aggregate
+-- Primary key (bounded_context, aggregate_type, aggregate_id) ensures one row per aggregate
 CREATE TABLE IF NOT EXISTS %s (
+    bounded_context VARCHAR(255) NOT NULL,
     aggregate_type VARCHAR(255) NOT NULL,
     aggregate_id VARCHAR(255) NOT NULL,
     aggregate_version BIGINT NOT NULL,
     updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     
-    PRIMARY KEY (aggregate_type, aggregate_id)
+    PRIMARY KEY (bounded_context, aggregate_type, aggregate_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Index for observability

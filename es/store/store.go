@@ -63,22 +63,23 @@ type AggregateStreamReader interface {
 	// Events are ordered by aggregate_version ascending.
 	//
 	// Parameters:
+	// - boundedContext: the bounded context of the aggregate (e.g., "Billing", "Identity")
 	// - aggregateType: the type of aggregate (e.g., "User", "Order")
 	// - aggregateID: the unique identifier of the aggregate instance (can be UUID string, email, etc.)
 	// - fromVersion: optional minimum version (inclusive). Pass nil to read from the beginning.
 	// - toVersion: optional maximum version (inclusive). Pass nil to read to the end.
 	//
 	// Examples:
-	// - ReadAggregateStream(ctx, tx, "User", "550e8400-e29b-41d4-a716-446655440000", nil, nil) - read all events
-	// - ReadAggregateStream(ctx, tx, "User", id, ptr(5), nil) - read from version 5 onwards
-	// - ReadAggregateStream(ctx, tx, "EmailReservation", "user@example.com", nil, nil) - read reservation events
-	// - ReadAggregateStream(ctx, tx, "User", id, nil, ptr(10)) - read up to version 10
-	// - ReadAggregateStream(ctx, tx, "User", id, ptr(5), ptr(10)) - read versions 5-10
+	// - ReadAggregateStream(ctx, tx, "Identity", "User", "550e8400-e29b-41d4-a716-446655440000", nil, nil) - read all events
+	// - ReadAggregateStream(ctx, tx, "Identity", "User", id, ptr(5), nil) - read from version 5 onwards
+	// - ReadAggregateStream(ctx, tx, "Identity", "EmailReservation", "user@example.com", nil, nil) - read reservation events
+	// - ReadAggregateStream(ctx, tx, "Billing", "User", id, nil, ptr(10)) - read up to version 10
+	// - ReadAggregateStream(ctx, tx, "Identity", "User", id, ptr(5), ptr(10)) - read versions 5-10
 	//
 	// Returns a Stream with an empty Events slice if no events match the criteria.
 	// Use stream.Version() to get the current aggregate version.
 	// Use stream.IsEmpty() to check if any events were found.
-	ReadAggregateStream(ctx context.Context, tx es.DBTX, aggregateType string, aggregateID string, fromVersion, toVersion *int64) (es.Stream, error)
+	ReadAggregateStream(ctx context.Context, tx es.DBTX, boundedContext, aggregateType string, aggregateID string, fromVersion, toVersion *int64) (es.Stream, error)
 }
 
 // CheckpointStore defines the interface for managing projection checkpoints.

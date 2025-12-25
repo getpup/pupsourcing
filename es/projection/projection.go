@@ -32,14 +32,14 @@ type Projection interface {
 }
 
 // ScopedProjection is an optional interface that projections can implement to filter
-// events by aggregate type. This is useful for read model projections that only care
-// about specific aggregate types.
+// events by aggregate type and/or bounded context. This is useful for read model projections
+// that only care about specific aggregate types within specific bounded contexts.
 //
 // By default, projections implementing only the Projection interface receive all events.
 // This ensures that global projections (e.g., integration publishers, audit logs) continue
 // to work without modification.
 //
-// Example - Read model projection:
+// Example - Read model projection scoped to User aggregate in Identity context:
 //
 // type UserReadModelProjection struct {}
 //
@@ -51,8 +51,33 @@ type Projection interface {
 //	   return []string{"User"}
 //	}
 //
+//	func (p *UserReadModelProjection) BoundedContexts() []string {
+//	   return []string{"Identity"}
+//	}
+//
 //	func (p *UserReadModelProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
-//	   // Only receives User aggregate events
+//	   // Only receives User aggregate events from Identity bounded context
+//	   return nil
+//	}
+//
+// Example - Read model projection scoped to multiple contexts:
+//
+// type OrderRevenueProjection struct {}
+//
+//	func (p *OrderRevenueProjection) Name() string {
+//	   return "order_revenue"
+//	}
+//
+//	func (p *OrderRevenueProjection) AggregateTypes() []string {
+//	   return []string{"Order"}
+//	}
+//
+//	func (p *OrderRevenueProjection) BoundedContexts() []string {
+//	   return []string{"Sales", "Billing"}
+//	}
+//
+//	func (p *OrderRevenueProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
+//	   // Receives Order events from both Sales and Billing contexts
 //	   return nil
 //	}
 //
@@ -65,15 +90,20 @@ type Projection interface {
 //	}
 //
 //	func (p *WatermillPublisher) Handle(ctx context.Context, event es.PersistedEvent) error {
-//	   // Receives ALL events for publishing to message broker
+//	   // Receives ALL events from all contexts for publishing to message broker
 //	   return nil
 //	}
 type ScopedProjection interface {
 	Projection
 	// AggregateTypes returns the list of aggregate types this projection cares about.
-	// If empty, the projection receives all events (same as not implementing ScopedProjection).
+	// If empty, the projection receives events from all aggregate types (still filtered by BoundedContexts if specified).
 	// If non-empty, only events matching one of these aggregate types are passed to Handle.
 	AggregateTypes() []string
+
+	// BoundedContexts returns the list of bounded contexts this projection cares about.
+	// If empty, the projection receives events from all bounded contexts (still filtered by AggregateTypes if specified).
+	// If non-empty, only events matching one of these bounded contexts are passed to Handle.
+	BoundedContexts() []string
 }
 
 // PartitionStrategy defines how events are partitioned across projection instances.

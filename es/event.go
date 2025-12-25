@@ -43,23 +43,25 @@ func (ns NullString) Value() (driver.Value, error) {
 // Events are value objects without identity until persisted.
 // AggregateVersion and GlobalPosition are assigned by the store during Append.
 type Event struct {
-	CreatedAt     time.Time
-	AggregateType string
-	EventType     string
-	AggregateID   string
-	Payload       []byte
-	Metadata      []byte
-	CausationID   NullString
-	CorrelationID NullString
-	TraceID       NullString
-	EventVersion  int
-	EventID       uuid.UUID
+	CreatedAt      time.Time
+	BoundedContext string
+	AggregateType  string
+	EventType      string
+	AggregateID    string
+	Payload        []byte
+	Metadata       []byte
+	CausationID    NullString
+	CorrelationID  NullString
+	TraceID        NullString
+	EventVersion   int
+	EventID        uuid.UUID
 }
 
 // PersistedEvent represents an event that has been stored.
 // It includes the GlobalPosition and AggregateVersion assigned by the event store.
 type PersistedEvent struct {
 	CreatedAt        time.Time
+	BoundedContext   string
 	AggregateType    string
 	EventType        string
 	AggregateID      string
@@ -78,9 +80,10 @@ type PersistedEvent struct {
 // It is immutable after creation and is returned from read operations.
 // Stream must never be returned from Append operations.
 type Stream struct {
-	AggregateType string
-	AggregateID   string
-	Events        []PersistedEvent
+	BoundedContext string
+	AggregateType  string
+	AggregateID    string
+	Events         []PersistedEvent
 }
 
 // Version returns the current version of the aggregate.

@@ -92,41 +92,78 @@ Each projection can have:
 ### Fast vs. Slow Projections
 
 ```go
-configs := []runner.ProjectionConfig{
-    {
-        Projection: &FastProjection{},
-        ProcessorConfig: projection.ProcessorConfig{
-            BatchSize: 1000, // Large batches for throughput
-        },
-    },
-    {
-        Projection: &SlowProjection{},
-        ProcessorConfig: projection.ProcessorConfig{
-            BatchSize: 10, // Small batches to avoid blocking
-        },
-    },
+// Create projections
+fastProjection := &FastProjection{}
+slowProjection := &SlowProjection{}
+
+// Configure processors independently
+var runners []runner.ProjectionRunner
+
+config1 := projection.ProcessorConfig{
+    BatchSize:         1000, // Large batches for throughput
+    PartitionKey:      0,
+    TotalPartitions:   1,
+    PartitionStrategy: projection.HashPartitionStrategy{},
 }
+processor1 := postgres.NewProcessor(db, store, &config1)
+runners = append(runners, runner.ProjectionRunner{
+    Projection: fastProjection,
+    Processor:  processor1,
+})
+
+config2 := projection.ProcessorConfig{
+    BatchSize:         10, // Small batches to avoid blocking
+    PartitionKey:      0,
+    TotalPartitions:   1,
+    PartitionStrategy: projection.HashPartitionStrategy{},
+}
+processor2 := postgres.NewProcessor(db, store, &config2)
+runners = append(runners, runner.ProjectionRunner{
+    Projection: slowProjection,
+    Processor:  processor2,
+})
+
+// Run all projections
+r := runner.New()
+err := r.Run(ctx, runners)
 ```
 
 ### Mixed Partitioning
 
 ```go
-configs := []runner.ProjectionConfig{
-    {
-        Projection: &NoPartitionProjection{},
-        ProcessorConfig: projection.ProcessorConfig{
-            PartitionKey: 0,
-            TotalPartitions: 1, // Single worker
-        },
-    },
-    {
-        Projection: &PartitionedProjection{},
-        ProcessorConfig: projection.ProcessorConfig{
-            PartitionKey: workerID,
-            TotalPartitions: 4, // Scaled across 4 workers
-        },
-    },
+// Create projections
+noPartProj := &NoPartitionProjection{}
+partitionedProj := &PartitionedProjection{}
+
+var runners []runner.ProjectionRunner
+
+config1 := projection.ProcessorConfig{
+    PartitionKey:      0,
+    TotalPartitions:   1, // Single worker
+    BatchSize:         100,
+    PartitionStrategy: projection.HashPartitionStrategy{},
 }
+processor1 := postgres.NewProcessor(db, store, &config1)
+runners = append(runners, runner.ProjectionRunner{
+    Projection: noPartProj,
+    Processor:  processor1,
+})
+
+config2 := projection.ProcessorConfig{
+    PartitionKey:      workerID,
+    TotalPartitions:   4, // Scaled across 4 workers
+    BatchSize:         100,
+    PartitionStrategy: projection.HashPartitionStrategy{},
+}
+processor2 := postgres.NewProcessor(db, store, &config2)
+runners = append(runners, runner.ProjectionRunner{
+    Projection: partitionedProj,
+    Processor:  processor2,
+})
+
+// Run all projections
+r := runner.New()
+err := r.Run(ctx, runners)
 ```
 
 ## Production Considerations

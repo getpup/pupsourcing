@@ -203,14 +203,15 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 	aggregateID := uuid.New().String()
 
 	event1 := es.Event{
-		AggregateType: "TestAggregate",
-		AggregateID:   aggregateID,
-		EventID:       uuid.New(),
-		EventType:     "TestEventCreated",
-		EventVersion:  1,
-		Payload:       []byte(`{}`),
-		Metadata:      []byte(`{}`),
-		CreatedAt:     time.Now(),
+		BoundedContext: "TestContext",
+		AggregateType:  "TestAggregate",
+		AggregateID:    aggregateID,
+		EventID:        uuid.New(),
+		EventType:      "TestEventCreated",
+		EventVersion:   1,
+		Payload:        []byte(`{}`),
+		Metadata:       []byte(`{}`),
+		CreatedAt:      time.Now(),
 	}
 
 	// First, append an event successfully to establish version 1
@@ -226,14 +227,15 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 	// Now try to manually insert a duplicate version to simulate optimistic concurrency conflict
 	// This simulates what happens when two processes both read MAX(version)=1, both try to insert version=2
 	event2 := es.Event{
-		AggregateType: "TestAggregate",
-		AggregateID:   aggregateID,
-		EventID:       uuid.New(),
-		EventType:     "TestEventUpdated",
-		EventVersion:  1,
-		Payload:       []byte(`{}`),
-		Metadata:      []byte(`{}`),
-		CreatedAt:     time.Now(),
+		BoundedContext: "TestContext",
+		AggregateType:  "TestAggregate",
+		AggregateID:    aggregateID,
+		EventID:        uuid.New(),
+		EventType:      "TestEventUpdated",
+		EventVersion:   1,
+		Payload:        []byte(`{}`),
+		Metadata:       []byte(`{}`),
+		CreatedAt:      time.Now(),
 	}
 
 	tx2, _ := db.BeginTx(ctx, nil)
@@ -341,14 +343,15 @@ func TestReadEvents_Pagination(t *testing.T) {
 	// Append multiple events
 	for i := 0; i < 5; i++ {
 		event := es.Event{
-			AggregateType: "TestAggregate",
-			AggregateID:   uuid.New().String(),
-			EventID:       uuid.New(),
-			EventType:     fmt.Sprintf("Event%d", i),
-			EventVersion:  1,
-			Payload:       []byte(`{}`),
-			Metadata:      []byte(`{}`),
-			CreatedAt:     time.Now(),
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
+			AggregateID:    uuid.New().String(),
+			EventID:        uuid.New(),
+			EventType:      fmt.Sprintf("Event%d", i),
+			EventVersion:   1,
+			Payload:        []byte(`{}`),
+			Metadata:       []byte(`{}`),
+			CreatedAt:      time.Now(),
 		}
 
 		tx, _ := db.BeginTx(ctx, nil)

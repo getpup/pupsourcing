@@ -215,14 +215,15 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 	aggregateID := uuid.New().String()
 
 	event1 := es.Event{
-		AggregateType: "TestAggregate",
-		AggregateID:   aggregateID,
-		EventID:       uuid.New(),
-		EventType:     "TestEventCreated",
-		EventVersion:  1,
-		Payload:       []byte(`{}`),
-		Metadata:      []byte(`{}`),
-		CreatedAt:     time.Now(),
+		BoundedContext: "TestContext",
+		AggregateType:  "TestAggregate",
+		AggregateID:    aggregateID,
+		EventID:        uuid.New(),
+		EventType:      "TestEventCreated",
+		EventVersion:   1,
+		Payload:        []byte(`{}`),
+		Metadata:       []byte(`{}`),
+		CreatedAt:      time.Now(),
 	}
 
 	// First, append an event successfully to establish version 1
@@ -237,14 +238,15 @@ func TestAppendEvents_OptimisticConcurrency(t *testing.T) {
 
 	// Now try to manually insert a duplicate version to simulate optimistic concurrency conflict
 	event2 := es.Event{
-		AggregateType: "TestAggregate",
-		AggregateID:   aggregateID,
-		EventID:       uuid.New(),
-		EventType:     "TestEventUpdated",
-		EventVersion:  1,
-		Payload:       []byte(`{}`),
-		Metadata:      []byte(`{}`),
-		CreatedAt:     time.Now(),
+		BoundedContext: "TestContext",
+		AggregateType:  "TestAggregate",
+		AggregateID:    aggregateID,
+		EventID:        uuid.New(),
+		EventType:      "TestEventUpdated",
+		EventVersion:   1,
+		Payload:        []byte(`{}`),
+		Metadata:       []byte(`{}`),
+		CreatedAt:      time.Now(),
 	}
 
 	tx2, _ := db.BeginTx(ctx, nil)

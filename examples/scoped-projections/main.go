@@ -169,39 +169,44 @@ func main() {
 	orderReadModel := &OrderReadModelProjection{}
 	watermillIntegration := &WatermillIntegrationProjection{}
 
-	// Configure each projection independently
-	configs := []runner.ProjectionConfig{
-		{
-			// Scoped projection - only receives User events
-			Projection: userReadModel,
-			ProcessorConfig: projection.ProcessorConfig{
-				BatchSize:         100,
-				PartitionKey:      0,
-				TotalPartitions:   1,
-				PartitionStrategy: projection.HashPartitionStrategy{},
-			},
-		},
-		{
-			// Scoped projection - only receives Order events
-			Projection: orderReadModel,
-			ProcessorConfig: projection.ProcessorConfig{
-				BatchSize:         100,
-				PartitionKey:      0,
-				TotalPartitions:   1,
-				PartitionStrategy: projection.HashPartitionStrategy{},
-			},
-		},
-		{
-			// Global projection - receives ALL events
-			Projection: watermillIntegration,
-			ProcessorConfig: projection.ProcessorConfig{
-				BatchSize:         100,
-				PartitionKey:      0,
-				TotalPartitions:   1,
-				PartitionStrategy: projection.HashPartitionStrategy{},
-			},
-		},
+	// Configure each projection independently and create processors
+	var runners []runner.ProjectionRunner
+
+	config1 := projection.ProcessorConfig{
+		BatchSize:         100,
+		PartitionKey:      0,
+		TotalPartitions:   1,
+		PartitionStrategy: projection.HashPartitionStrategy{},
 	}
+	processor1 := postgres.NewProcessor(db, store, &config1)
+	runners = append(runners, runner.ProjectionRunner{
+		Projection: userReadModel, // Scoped projection - only receives User events
+		Processor:  processor1,
+	})
+
+	config2 := projection.ProcessorConfig{
+		BatchSize:         100,
+		PartitionKey:      0,
+		TotalPartitions:   1,
+		PartitionStrategy: projection.HashPartitionStrategy{},
+	}
+	processor2 := postgres.NewProcessor(db, store, &config2)
+	runners = append(runners, runner.ProjectionRunner{
+		Projection: orderReadModel, // Scoped projection - only receives Order events
+		Processor:  processor2,
+	})
+
+	config3 := projection.ProcessorConfig{
+		BatchSize:         100,
+		PartitionKey:      0,
+		TotalPartitions:   1,
+		PartitionStrategy: projection.HashPartitionStrategy{},
+	}
+	processor3 := postgres.NewProcessor(db, store, &config3)
+	runners = append(runners, runner.ProjectionRunner{
+		Projection: watermillIntegration, // Global projection - receives ALL events
+		Processor:  processor3,
+	})
 
 	// Set up graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)
@@ -223,7 +228,8 @@ func main() {
 	log.Println("- WatermillIntegration: GLOBAL, receives ALL events")
 	log.Println("\nPress Ctrl+C to stop")
 
-	err = runner.RunMultipleProjections(ctx, db, store, store, configs)
+	r := runner.New()
+	err = r.Run(ctx, runners)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		log.Printf("Runner error: %v", err)
 		return

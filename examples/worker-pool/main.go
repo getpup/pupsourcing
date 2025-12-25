@@ -112,12 +112,26 @@ func main() {
 		cancel()
 	}()
 
-	// Run projection with N workers using the helper
+	// Run projection with N workers
 	log.Printf("Starting projection with %d workers in a single process...", *numWorkers)
 	log.Println("Each worker handles events for different aggregate IDs")
 	log.Println("Press Ctrl+C to stop")
 
-	err = runner.RunProjectionPartitions(ctx, db, store, store, proj, *numWorkers)
+	// Create runners for each partition
+	var runners []runner.ProjectionRunner
+	for i := 0; i < *numWorkers; i++ {
+		config := projection.DefaultProcessorConfig()
+		config.PartitionKey = i
+		config.TotalPartitions = *numWorkers
+		processor := postgres.NewProcessor(db, store, &config)
+		runners = append(runners, runner.ProjectionRunner{
+			Projection: proj,
+			Processor:  processor,
+		})
+	}
+
+	r := runner.New()
+	err = r.Run(ctx, runners)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		//nolint:gocritic // it's just an example code
 		log.Fatalf("Runner error: %v", err)

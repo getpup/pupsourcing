@@ -134,36 +134,44 @@ func main() {
 	revenueTracker := &RevenueProjection{}
 	activityLog := &ActivityLogProjection{}
 
-	// Configure each projection independently
-	configs := []runner.ProjectionConfig{
-		{
-			Projection: userCounter,
-			ProcessorConfig: projection.ProcessorConfig{
-				BatchSize:         100,
-				PartitionKey:      0,
-				TotalPartitions:   1,
-				PartitionStrategy: projection.HashPartitionStrategy{},
-			},
-		},
-		{
-			Projection: revenueTracker,
-			ProcessorConfig: projection.ProcessorConfig{
-				BatchSize:         50, // Different batch size
-				PartitionKey:      0,
-				TotalPartitions:   1,
-				PartitionStrategy: projection.HashPartitionStrategy{},
-			},
-		},
-		{
-			Projection: activityLog,
-			ProcessorConfig: projection.ProcessorConfig{
-				BatchSize:         200, // Larger batch for logging
-				PartitionKey:      0,
-				TotalPartitions:   1,
-				PartitionStrategy: projection.HashPartitionStrategy{},
-			},
-		},
+	// Configure each projection independently and create processors
+	var runners []runner.ProjectionRunner
+
+	config1 := projection.ProcessorConfig{
+		BatchSize:         100,
+		PartitionKey:      0,
+		TotalPartitions:   1,
+		PartitionStrategy: projection.HashPartitionStrategy{},
 	}
+	processor1 := postgres.NewProcessor(db, store, &config1)
+	runners = append(runners, runner.ProjectionRunner{
+		Projection: userCounter,
+		Processor:  processor1,
+	})
+
+	config2 := projection.ProcessorConfig{
+		BatchSize:         50, // Different batch size
+		PartitionKey:      0,
+		TotalPartitions:   1,
+		PartitionStrategy: projection.HashPartitionStrategy{},
+	}
+	processor2 := postgres.NewProcessor(db, store, &config2)
+	runners = append(runners, runner.ProjectionRunner{
+		Projection: revenueTracker,
+		Processor:  processor2,
+	})
+
+	config3 := projection.ProcessorConfig{
+		BatchSize:         200, // Larger batch for logging
+		PartitionKey:      0,
+		TotalPartitions:   1,
+		PartitionStrategy: projection.HashPartitionStrategy{},
+	}
+	processor3 := postgres.NewProcessor(db, store, &config3)
+	runners = append(runners, runner.ProjectionRunner{
+		Projection: activityLog,
+		Processor:  processor3,
+	})
 
 	// Set up graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)
@@ -181,7 +189,8 @@ func main() {
 	// Run all projections concurrently using the runner
 	log.Println("Starting multiple projections...")
 	log.Println("Press Ctrl+C to stop")
-	err = runner.RunMultipleProjections(ctx, db, store, store, configs)
+	r := runner.New()
+	err = r.Run(ctx, runners)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		//nolint:gocritic // it's just an example code
 		log.Fatalf("Runner error: %v", err)

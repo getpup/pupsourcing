@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/lib/pq"
-
 	"github.com/getpup/pupsourcing/es"
 	"github.com/getpup/pupsourcing/es/store"
 )
@@ -301,20 +299,34 @@ func (s *Store) Append(ctx context.Context, tx es.DBTX, expectedVersion es.Expec
 	}, nil
 }
 
+const uniqueViolationSQLState = "23505"
+
 // IsUniqueViolation checks if an error is a PostgreSQL unique constraint violation.
 // This is exported for testing purposes.
+// Driver-agnostic: works with pq, pgx, and database/sql.
 func IsUniqueViolation(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	// Check if it's a pq.Error with unique_violation code (23505)
-	var pqErr *pq.Error
-	if errors.As(err, &pqErr) {
-		return pqErr.Code == "23505" // unique_violation
+	// pgx driver: check for SQLState() method
+	type pgxError interface {
+		SQLState() string
+	}
+	var pgxErr pgxError
+	if errors.As(err, &pgxErr) {
+		return pgxErr.SQLState() == uniqueViolationSQLState
 	}
 
-	// Fallback: check error message for common patterns
+	// pq driver: check for Code field
+	var pqErr interface {
+		Code() string
+	}
+	if errors.As(err, &pqErr) {
+		return pqErr.Code() == uniqueViolationSQLState
+	}
+
+	// Fallback: check error message for common patterns (for wrapped or custom errors)
 	errMsg := fmt.Sprintf("%v", err)
 	return containsString(errMsg, "duplicate key") || containsString(errMsg, "unique constraint")
 }

@@ -14,11 +14,48 @@ pupsourcing provides minimal, reliable infrastructure for event sourcing in Go a
 
 - **Clean Architecture** - Core interfaces are datastore-agnostic; no "infrastructure creep" into your domain model (no annotations, no framework-specific base classes)
 - **Multiple Database Adapters** - PostgreSQL, SQLite, and MySQL/MariaDB
+- **Bounded Context Support** - Events are scoped to bounded contexts for domain-driven design alignment
 - **Optimistic Concurrency** - Automatic conflict detection via database constraints
-- **Projection System** - Pull-based event processing with checkpoints
+- **Projection System** - Pull-based event processing with checkpoints, supporting both global and context-scoped projections
 - **Horizontal Scaling** - Hash-based partitioning for projection workers
 - **Code Generation** - Optional tool for strongly-typed domain event mapping
 - **Minimal Dependencies** - Go standard library plus database driver
+
+## Bounded Contexts
+
+pupsourcing requires all events to belong to a **bounded context**, supporting Domain-Driven Design (DDD) principles. A bounded context is an explicit boundary within which a domain model is defined and applicable.
+
+### Why Bounded Contexts?
+
+- **Domain Isolation**: Different parts of your system (e.g., Identity, Billing, Catalog) can evolve independently
+- **Clear Boundaries**: Events are explicitly scoped, preventing accidental mixing of concerns
+- **Flexible Projections**: Scoped projections can filter by both aggregate type and bounded context
+- **Uniqueness**: Event uniqueness is enforced per `(BoundedContext, AggregateType, AggregateID, AggregateVersion)`
+
+### Example Contexts
+
+```go
+// Identity context - user management
+event := es.Event{
+    BoundedContext: "Identity",
+    AggregateType:  "User",
+    // ...
+}
+
+// Billing context - subscription management
+event := es.Event{
+    BoundedContext: "Billing",
+    AggregateType:  "Subscription",
+    // ...
+}
+
+// Catalog context - product information
+event := es.Event{
+    BoundedContext: "Catalog",
+    AggregateType:  "Product",
+    // ...
+}
+```
 
 ## Installation
 
@@ -72,16 +109,17 @@ import (
 // Create store
 store := postgres.NewStore(postgres.DefaultStoreConfig())
 
-// Create event
+// Create event with bounded context
 event := es.Event{
-    AggregateType: "User",
-    AggregateID:   uuid.New().String(),  // String-based ID for flexibility
-    EventID:       uuid.New(),
-    EventType:     "UserCreated",
-    EventVersion:  1,
-    Payload:       []byte(`{"email":"alice@example.com","name":"Alice"}`),
-    Metadata:      []byte(`{}`),
-    CreatedAt:     time.Now(),
+    BoundedContext: "Identity",       // Required: bounded context for the event
+    AggregateType:  "User",
+    AggregateID:    uuid.New().String(),  // String-based ID for flexibility
+    EventID:        uuid.New(),
+    EventType:      "UserCreated",
+    EventVersion:   1,
+    Payload:        []byte(`{"email":"alice@example.com","name":"Alice"}`),
+    Metadata:       []byte(`{}`),
+    CreatedAt:      time.Now(),
 }
 
 // Append within transaction with optimistic concurrency control
@@ -102,32 +140,34 @@ fmt.Printf("Aggregate is now at version: %d\n", result.ToVersion())
 ### 4. Read Aggregate Streams
 
 ```go
-// Read all events for an aggregate
+// Read all events for an aggregate (with bounded context)
 aggregateID := uuid.New().String()
-stream, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
+stream, err := store.ReadAggregateStream(ctx, tx, "Identity", "User", aggregateID, nil, nil)
 
 // Access stream information
 fmt.Printf("Stream has %d events\n", stream.Len())
 fmt.Printf("Current aggregate version: %d\n", stream.Version())
+fmt.Printf("Bounded context: %s\n", stream.BoundedContext)
 
 // Read from a specific version
 fromVersion := int64(5)
-stream, err = store.ReadAggregateStream(ctx, tx, "User", aggregateID, &fromVersion, nil)
+stream, err = store.ReadAggregateStream(ctx, tx, "Identity", "User", aggregateID, &fromVersion, nil)
 
 // Process events
 for _, event := range stream.Events {
-    // Handle event
+    // Handle event - all events have the same bounded context
+    fmt.Printf("Event %s in context %s\n", event.EventType, event.BoundedContext)
 }
 ```
 
 ### 5. Run Projections
 
-Projections transform events into query-optimized read models. Use **scoped projections** for read models that only care about specific aggregate types, or **global projections** for integration publishers that need all events.
+Projections transform events into query-optimized read models. Use **scoped projections** for read models that only care about specific aggregate types and/or bounded contexts, or **global projections** for integration publishers that need all events.
 
 ```go
 import "github.com/getpup/pupsourcing/es/projection"
 
-// Scoped projection - only receives User aggregate events
+// Scoped projection - only receives User aggregate events from Identity context
 type UserReadModelProjection struct{}
 
 func (p *UserReadModelProjection) Name() string {
@@ -139,8 +179,13 @@ func (p *UserReadModelProjection) AggregateTypes() []string {
     return []string{"User"}  // Only receives User events
 }
 
+// BoundedContexts filters events by bounded context
+func (p *UserReadModelProjection) BoundedContexts() []string {
+    return []string{"Identity"}  // Only receives events from Identity context
+}
+
 func (p *UserReadModelProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
-    // Update read model based on User events only
+    // Update read model based on User events from Identity context only
     // Projection manages its own persistence
     return nil
 }

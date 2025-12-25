@@ -93,7 +93,8 @@ func TestScopedProjection_GlobalReceivesAllEvents(t *testing.T) {
 	// Each event must be appended separately since they belong to different aggregates
 	events := []es.Event{
 		{
-			AggregateType: "User",
+			BoundedContext: "TestContext",
+			AggregateType:  "User",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "UserCreated",
@@ -103,7 +104,8 @@ func TestScopedProjection_GlobalReceivesAllEvents(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "Order",
+			BoundedContext: "TestContext",
+			AggregateType:  "Order",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "OrderPlaced",
@@ -113,7 +115,8 @@ func TestScopedProjection_GlobalReceivesAllEvents(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "Product",
+			BoundedContext: "TestContext",
+			AggregateType:  "Product",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "ProductAdded",
@@ -182,7 +185,8 @@ func TestScopedProjection_OnlyReceivesMatchingAggregates(t *testing.T) {
 	// Each event must be appended separately since they belong to different aggregates
 	events := []es.Event{
 		{
-			AggregateType: "User",
+			BoundedContext: "TestContext",
+			AggregateType:  "User",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "UserCreated",
@@ -192,7 +196,8 @@ func TestScopedProjection_OnlyReceivesMatchingAggregates(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "User",
+			BoundedContext: "TestContext",
+			AggregateType:  "User",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "UserUpdated",
@@ -202,7 +207,8 @@ func TestScopedProjection_OnlyReceivesMatchingAggregates(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "Order",
+			BoundedContext: "TestContext",
+			AggregateType:  "Order",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "OrderPlaced",
@@ -212,7 +218,8 @@ func TestScopedProjection_OnlyReceivesMatchingAggregates(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "Product",
+			BoundedContext: "TestContext",
+			AggregateType:  "Product",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "ProductAdded",
@@ -278,7 +285,8 @@ func TestScopedProjection_MultipleAggregateTypes(t *testing.T) {
 	// Each event must be appended separately since they belong to different aggregates
 	events := []es.Event{
 		{
-			AggregateType: "User",
+			BoundedContext: "TestContext",
+			AggregateType:  "User",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "UserCreated",
@@ -288,7 +296,8 @@ func TestScopedProjection_MultipleAggregateTypes(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "Order",
+			BoundedContext: "TestContext",
+			AggregateType:  "Order",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "OrderPlaced",
@@ -298,7 +307,8 @@ func TestScopedProjection_MultipleAggregateTypes(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "Product",
+			BoundedContext: "TestContext",
+			AggregateType:  "Product",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "ProductAdded",
@@ -308,7 +318,8 @@ func TestScopedProjection_MultipleAggregateTypes(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "Inventory",
+			BoundedContext: "TestContext",
+			AggregateType:  "Inventory",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "InventoryAdjusted",
@@ -374,7 +385,8 @@ func TestScopedProjection_EmptyAggregateTypesReceivesAll(t *testing.T) {
 	// Each event must be appended separately since they belong to different aggregates
 	events := []es.Event{
 		{
-			AggregateType: "User",
+			BoundedContext: "TestContext",
+			AggregateType:  "User",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "UserCreated",
@@ -384,7 +396,8 @@ func TestScopedProjection_EmptyAggregateTypesReceivesAll(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "Order",
+			BoundedContext: "TestContext",
+			AggregateType:  "Order",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "OrderPlaced",
@@ -443,7 +456,8 @@ func TestScopedProjection_MixedProjectionsWorkCorrectly(t *testing.T) {
 	// Each event must be appended separately since they belong to different aggregates
 	events := []es.Event{
 		{
-			AggregateType: "User",
+			BoundedContext: "TestContext",
+			AggregateType:  "User",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "UserCreated",
@@ -453,7 +467,8 @@ func TestScopedProjection_MixedProjectionsWorkCorrectly(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "Order",
+			BoundedContext: "TestContext",
+			AggregateType:  "Order",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "OrderPlaced",
@@ -463,7 +478,8 @@ func TestScopedProjection_MixedProjectionsWorkCorrectly(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "Product",
+			BoundedContext: "TestContext",
+			AggregateType:  "Product",
 			AggregateID:   uuid.New().String(),
 			EventID:       uuid.New(),
 			EventType:     "ProductAdded",

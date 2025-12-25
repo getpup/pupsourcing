@@ -27,9 +27,10 @@ func (p *mockGlobalProjection) Handle(_ context.Context, event es.PersistedEvent
 
 // mockScopedProjection is a projection that only receives specific aggregate types
 type mockScopedProjection struct {
-	name           string
-	aggregateTypes []string
-	receivedEvents []es.PersistedEvent
+	name            string
+	aggregateTypes  []string
+	boundedContexts []string
+	receivedEvents  []es.PersistedEvent
 }
 
 func (p *mockScopedProjection) Name() string {
@@ -38,6 +39,10 @@ func (p *mockScopedProjection) Name() string {
 
 func (p *mockScopedProjection) AggregateTypes() []string {
 	return p.aggregateTypes
+}
+
+func (p *mockScopedProjection) BoundedContexts() []string {
+	return p.boundedContexts
 }
 
 //nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability

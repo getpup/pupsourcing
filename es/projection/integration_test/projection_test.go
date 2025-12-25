@@ -162,7 +162,8 @@ func TestProjection_BasicProcessing(t *testing.T) {
 	aggregateID := uuid.New().String()
 	events := []es.Event{
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "EventCreated",
@@ -172,7 +173,8 @@ func TestProjection_BasicProcessing(t *testing.T) {
 			CreatedAt:     time.Now(),
 		},
 		{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     "EventUpdated",

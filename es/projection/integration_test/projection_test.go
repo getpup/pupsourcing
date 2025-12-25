@@ -232,7 +232,8 @@ func TestProjection_Checkpoint(t *testing.T) {
 	allEvents := make([]es.Event, 5)
 	for i := 0; i < 5; i++ {
 		allEvents[i] = es.Event{
-			AggregateType: "TestAggregate",
+			BoundedContext: "TestContext",
+			AggregateType:  "TestAggregate",
 			AggregateID:   aggregateID,
 			EventID:       uuid.New(),
 			EventType:     fmt.Sprintf("Event%d", i+1),
@@ -303,7 +304,8 @@ func TestProjection_ErrorHandling(t *testing.T) {
 	// Append events
 	aggregateID := uuid.New().String()
 	event := es.Event{
-		AggregateType: "TestAggregate",
+		BoundedContext: "TestContext",
+		AggregateType:  "TestAggregate",
 		AggregateID:   aggregateID,
 		EventID:       uuid.New(),
 		EventType:     "ErrorEvent",

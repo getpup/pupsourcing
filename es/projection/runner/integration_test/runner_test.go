@@ -165,6 +165,42 @@ func appendTestEvents(t *testing.T, ctx context.Context, db *sql.DB, store *post
 	return persistedEvents
 }
 
+// Helper functions for the new API
+
+// createAndRunPartitions runs a projection with N partitions
+func createAndRunPartitions(ctx context.Context, db *sql.DB, store *postgres.Store, proj projection.Projection, totalPartitions int) error {
+	var runners []runner.ProjectionRunner
+	for i := 0; i < totalPartitions; i++ {
+		config := projection.DefaultProcessorConfig()
+		config.PartitionKey = i
+		config.TotalPartitions = totalPartitions
+		processor := postgres.NewProcessor(db, store, &config)
+		runners = append(runners, runner.ProjectionRunner{
+			Projection: proj,
+			Processor:  processor,
+		})
+	}
+	
+	r := runner.New()
+	return r.Run(ctx, runners)
+}
+
+// createAndRunMultiple runs multiple projections
+func createAndRunMultiple(ctx context.Context, db *sql.DB, store *postgres.Store, projections []projection.Projection) error {
+	var runners []runner.ProjectionRunner
+	for _, proj := range projections {
+		config := projection.DefaultProcessorConfig()
+		processor := postgres.NewProcessor(db, store, &config)
+		runners = append(runners, runner.ProjectionRunner{
+			Projection: proj,
+			Processor:  processor,
+		})
+	}
+	
+	r := runner.New()
+	return r.Run(ctx, runners)
+}
+
 // countingProjection counts events processed
 type countingProjection struct {
 	name  string
@@ -176,7 +212,7 @@ func (p *countingProjection) Name() string {
 }
 
 //nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
-func (p *countingProjection) Handle(_ context.Context, _ es.DBTX, _ es.PersistedEvent) error {
+func (p *countingProjection) Handle(_ context.Context, _ es.PersistedEvent) error {
 	atomic.AddInt64(&p.count, 1)
 	return nil
 }
@@ -202,7 +238,7 @@ func TestRunProjectionPartitions(t *testing.T) {
 	ctx2, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	err := runner.RunProjectionPartitions(ctx2, db, store, store, proj, 4)
+	err := createAndRunPartitions(ctx2, db, store, proj, 4)
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("RunProjectionPartitions failed: %v", err)
 	}
@@ -258,7 +294,7 @@ func TestRunMultipleProjections(t *testing.T) {
 	proj1 := &countingProjection{name: "test_multi_proj1"}
 	proj2 := &countingProjection{name: "test_multi_proj2"}
 
-	configs := []runner.ProjectionConfig{
+	projections := []projection.Projection{
 		{
 			Projection:      proj1,
 			ProcessorConfig: projection.DefaultProcessorConfig(),
@@ -273,7 +309,7 @@ func TestRunMultipleProjections(t *testing.T) {
 	ctx2, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	err := runner.RunMultipleProjections(ctx2, db, store, store, configs)
+	err := runner.RunMultipleProjections(ctx2, db, store, store, projections)
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("RunMultipleProjections failed: %v", err)
 	}
@@ -331,7 +367,7 @@ func (p *failingProjection) Name() string {
 }
 
 //nolint:gocritic // hugeParam: Intentionally pass by value to enforce immutability
-func (p *failingProjection) Handle(_ context.Context, _ es.DBTX, _ es.PersistedEvent) error {
+func (p *failingProjection) Handle(_ context.Context, _ es.PersistedEvent) error {
 	count := atomic.AddInt64(&p.count, 1)
 	if !p.shouldResume && count > p.failAfter {
 		return errors.New("intentional failure")
@@ -358,13 +394,13 @@ func TestRunnerErrorHandling(t *testing.T) {
 		failAfter: 10,
 	}
 
-	r := runner.New(db, store, store)
+	r := runner.New()
 
 	// Use small batch size to ensure we save checkpoints before failure
 	config := projection.DefaultProcessorConfig()
 	config.BatchSize = 5
 
-	configs := []runner.ProjectionConfig{
+	projections := []projection.Projection{
 		{
 			Projection:      proj,
 			ProcessorConfig: config,
@@ -375,7 +411,7 @@ func TestRunnerErrorHandling(t *testing.T) {
 	ctx2, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	err := r.Run(ctx2, configs)
+	err := r.Run(ctx2, projections)
 	if err == nil {
 		t.Fatal("Expected error from runner, got nil")
 	}
@@ -400,7 +436,7 @@ func TestRunnerErrorHandling(t *testing.T) {
 	ctx3, cancel3 := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel3()
 
-	resumeConfigs := []runner.ProjectionConfig{
+	resumeConfigs := []projection.Projection{
 		{
 			Projection:      proj,
 			ProcessorConfig: config, // Use same config with small batch size
@@ -439,7 +475,7 @@ func TestRunnerConcurrentCheckpoints(t *testing.T) {
 	ctx2, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	err := runner.RunProjectionPartitions(ctx2, db, store, store, proj, 4)
+	err := createAndRunPartitions(ctx2, db, store, proj, 4)
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("RunProjectionPartitions failed: %v", err)
 	}

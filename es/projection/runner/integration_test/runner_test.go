@@ -165,8 +165,6 @@ func appendTestEvents(t *testing.T, ctx context.Context, db *sql.DB, store *post
 	return persistedEvents
 }
 
-// Helper functions for the new API
-
 // createAndRunPartitions runs a projection with N partitions
 func createAndRunPartitions(ctx context.Context, db *sql.DB, store *postgres.Store, proj projection.Projection, totalPartitions int) error {
 	var runners []runner.ProjectionRunner
@@ -294,24 +292,15 @@ func TestRunMultipleProjections(t *testing.T) {
 	proj1 := &countingProjection{name: "test_multi_proj1"}
 	proj2 := &countingProjection{name: "test_multi_proj2"}
 
-	projections := []projection.Projection{
-		{
-			Projection:      proj1,
-			ProcessorConfig: projection.DefaultProcessorConfig(),
-		},
-		{
-			Projection:      proj2,
-			ProcessorConfig: projection.DefaultProcessorConfig(),
-		},
-	}
+	projections := []projection.Projection{proj1, proj2}
 
 	// Run both projections for a short time
 	ctx2, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	err := runner.RunMultipleProjections(ctx2, db, store, store, projections)
+	err := createAndRunMultiple(ctx2, db, store, projections)
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("RunMultipleProjections failed: %v", err)
+		t.Fatalf("createAndRunMultiple failed: %v", err)
 	}
 
 	// Verify both projections processed all events
@@ -400,18 +389,17 @@ func TestRunnerErrorHandling(t *testing.T) {
 	config := projection.DefaultProcessorConfig()
 	config.BatchSize = 5
 
-	projections := []projection.Projection{
-		{
-			Projection:      proj,
-			ProcessorConfig: config,
-		},
+	// Create processor with small batch size
+	processor := postgres.NewProcessor(db, store, &config)
+	runners := []runner.ProjectionRunner{
+		{Projection: proj, Processor: processor},
 	}
 
 	// Run and expect failure
 	ctx2, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	err := r.Run(ctx2, projections)
+	err := r.Run(ctx2, runners)
 	if err == nil {
 		t.Fatal("Expected error from runner, got nil")
 	}
@@ -436,14 +424,13 @@ func TestRunnerErrorHandling(t *testing.T) {
 	ctx3, cancel3 := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel3()
 
-	resumeConfigs := []projection.Projection{
-		{
-			Projection:      proj,
-			ProcessorConfig: config, // Use same config with small batch size
-		},
+	// Create processor for resume
+	resumeProcessor := postgres.NewProcessor(db, store, &config)
+	resumeRunners := []runner.ProjectionRunner{
+		{Projection: proj, Processor: resumeProcessor},
 	}
 
-	err = r.Run(ctx3, resumeConfigs)
+	err = r.Run(ctx3, resumeRunners)
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Unexpected error on resume: %v", err)
 	}

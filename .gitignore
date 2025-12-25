@@ -54,3 +54,14 @@ examples/*/with-logging
 examples/*/worker-pool
 examples/scoped-projections/scoped-projections
 eventmap-gen
+# Binaries
+basic
+mysql-basic
+partitioned
+scaling
+single-worker
+sqlite-basic
+stop-resume
+with-logging
+*.test
+integration_test.test

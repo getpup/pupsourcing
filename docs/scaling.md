@@ -388,18 +388,16 @@ import "github.com/getpup/pupsourcing/es/projection/runner"
 
 store := postgres.NewStore(postgres.DefaultStoreConfig())
 
-// Create processor for each projection
+// Create a single processor - it can be reused for multiple projections
+// since processors are stateless orchestrators
 config := projection.DefaultProcessorConfig()
-
-processor1 := postgres.NewProcessor(db, store, &config)
-processor2 := postgres.NewProcessor(db, store, &config)
-processor3 := postgres.NewProcessor(db, store, &config)
+processor := postgres.NewProcessor(db, store, &config)
 
 r := runner.New()
 err := r.Run(ctx, []runner.ProjectionRunner{
-    {Projection: &UserCounterProjection{}, Processor: processor1},
-    {Projection: &EmailSenderProjection{}, Processor: processor2},
-    {Projection: &AnalyticsProjection{}, Processor: processor3},
+    {Projection: &UserCounterProjection{}, Processor: processor},
+    {Projection: &EmailSenderProjection{}, Processor: processor},
+    {Projection: &AnalyticsProjection{}, Processor: processor},
 })
 ```
 

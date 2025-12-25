@@ -33,6 +33,16 @@ func NewProcessor(db *sql.DB, store *Store, config *projection.ProcessorConfig) 
 	}
 }
 
+// checkpointName returns the checkpoint name for this processor.
+// When partitioning is enabled (TotalPartitions > 1), it appends the partition key to ensure
+// each partition tracks its checkpoint independently.
+func (p *Processor) checkpointName(projectionName string) string {
+	if p.config.TotalPartitions > 1 {
+		return fmt.Sprintf("%s_p%d", projectionName, p.config.PartitionKey)
+	}
+	return projectionName
+}
+
 // Run processes events for the given projection until the context is canceled.
 // It reads events in batches, applies partition and aggregate type filters, and updates checkpoints.
 // Returns an error if the projection handler fails.
@@ -128,8 +138,9 @@ func (p *Processor) processBatch(ctx context.Context, proj projection.Projection
 		tx.Rollback()
 	}()
 
-	// Get current checkpoint
-	checkpoint, err := p.store.GetCheckpoint(ctx, tx, proj.Name())
+	// Get current checkpoint - use partition-aware name
+	checkpointName := p.checkpointName(proj.Name())
+	checkpoint, err := p.store.GetCheckpoint(ctx, tx, checkpointName)
 	if err != nil {
 		return fmt.Errorf("failed to get checkpoint: %w", err)
 	}
@@ -137,6 +148,7 @@ func (p *Processor) processBatch(ctx context.Context, proj projection.Projection
 	if p.config.Logger != nil {
 		p.config.Logger.Debug(ctx, "processing batch",
 			"projection", proj.Name(),
+			"checkpoint_name", checkpointName,
 			"checkpoint", checkpoint,
 			"batch_size", p.config.BatchSize)
 	}
@@ -188,9 +200,9 @@ func (p *Processor) processBatch(ctx context.Context, proj projection.Projection
 		processedCount++
 	}
 
-	// Update checkpoint
+	// Update checkpoint - use partition-aware name
 	if lastPosition > 0 {
-		err = p.store.UpdateCheckpoint(ctx, tx, proj.Name(), lastPosition)
+		err = p.store.UpdateCheckpoint(ctx, tx, checkpointName, lastPosition)
 		if err != nil {
 			return fmt.Errorf("failed to update checkpoint: %w", err)
 		}

@@ -658,7 +658,6 @@ func TestScopedProjection_FilterByBoundedContext(t *testing.T) {
 
 	// Run projections
 	config := projection.DefaultProcessorConfig()
-	config.PollInterval = 100 * time.Millisecond
 	processor := postgres.NewProcessor(db, store, &config)
 
 	projCtx, cancel := context.WithTimeout(ctx, 2*time.Second)

@@ -235,7 +235,7 @@ func readAggregateStream(ctx context.Context, db *sql.DB, store *mysql.Store, ag
 	//nolint:errcheck // cleanup
 	defer tx.Rollback()
 
-	stream, err := store.ReadAggregateStream(ctx, tx, "User", aggregateID, nil, nil)
+	stream, err := store.ReadAggregateStream(ctx, tx, "Identity", "User", aggregateID, nil, nil)
 	if err != nil {
 		return fmt.Errorf("failed to read aggregate stream: %w", err)
 	}

@@ -103,6 +103,7 @@ func main() {
 	// Simulate events stored in database (mixed versions)
 	persistedEvents := []es.PersistedEvent{
 		{
+			BoundedContext:   "Identity",
 			AggregateType:    "User",
 			AggregateID:      userID,
 			EventType:        "UserRegistered",
@@ -115,6 +116,7 @@ func main() {
 			CreatedAt:        time.Now(),
 		},
 		{
+			BoundedContext:   "Identity",
 			AggregateType:    "User",
 			AggregateID:      userID,
 			EventType:        "UserEmailChanged",
@@ -127,6 +129,7 @@ func main() {
 			CreatedAt:        time.Now(),
 		},
 		{
+			BoundedContext:   "Identity",
 			AggregateType:    "User",
 			AggregateID:      userID,
 			EventType:        "UserRegistered",
@@ -195,6 +198,7 @@ func main() {
 
 	// Convert back with type-safe helper
 	persistedSpecific := es.PersistedEvent{
+		BoundedContext:   "Identity",
 		AggregateType:    specificESEvent.AggregateType,
 		AggregateID:      specificESEvent.AggregateID,
 		EventType:        specificESEvent.EventType,

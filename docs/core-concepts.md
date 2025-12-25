@@ -680,40 +680,6 @@ func LoadUser(ctx context.Context, tx es.DBTX, store store.AggregateStreamReader
 }
 ```
 
-### Pattern 4: Saga/Process Manager
-
-Coordinate across aggregates:
-
-```go
-type OrderSagaProjection struct {
-    store *postgres.Store
-    db    *sql.DB
-}
-
-func (p *OrderSagaProjection) Handle(ctx context.Context, event es.PersistedEvent) error {
-    switch event.EventType {
-    case "OrderPlaced":
-        // Reserve inventory
-        inventoryEvent := /* ... */
-        _, err := p.store.Append(ctx, tx, es.NoStream(), []es.Event{inventoryEvent})
-        return err
-    
-    case "InventoryReserved":
-        // Charge payment
-        paymentEvent := /* ... */
-        _, err := p.store.Append(ctx, tx, es.NoStream(), []es.Event{paymentEvent})
-        return err
-    
-    case "PaymentSucceeded":
-        // Ship order
-        shippingEvent := /* ... */
-        _, err := p.store.Append(ctx, tx, es.NoStream(), []es.Event{shippingEvent})
-        return err
-    }
-    return nil
-}
-```
-
 ## See Also
 
 - [Getting Started](./getting-started.md) - Setup and first steps

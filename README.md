@@ -176,6 +176,37 @@ Complete runnable examples are available in the [`examples/`](./examples) direct
 
 See the [examples README](./examples/README.md) for more details.
 
+## Development
+
+### Running Tests
+
+**Unit tests:**
+```bash
+make test-unit
+```
+
+**Integration tests locally (requires Docker):**
+```bash
+make test-integration-local
+```
+
+This command automatically:
+1. Starts PostgreSQL and MySQL containers via docker-compose
+2. Runs all integration tests
+3. Cleans up containers
+
+**Manual integration testing:**
+```bash
+# Start databases
+docker-compose up -d
+
+# Run integration tests
+make test-integration
+
+# Stop databases
+docker-compose down
+```
+
 ## Contributing
 
 Contributions are welcome! Please submit a Pull Request.

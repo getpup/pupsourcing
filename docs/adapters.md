@@ -1,6 +1,6 @@
 # Database Adapters
 
-pupsourcing provides production-ready adapters for PostgreSQL, SQLite, and MySQL/MariaDB. All adapters implement identical interfaces, enabling seamless database migration.
+pupsourcing provides production-ready adapters for PostgreSQL, SQLite, and MySQL/MariaDB. All adapters implement identical interfaces, enabling consistent event sourcing operations across different databases.
 
 ## Table of Contents
 
@@ -9,7 +9,6 @@ pupsourcing provides production-ready adapters for PostgreSQL, SQLite, and MySQL
 - [SQLite Adapter](#sqlite-adapter)
 - [MySQL/MariaDB Adapter](#mysqlmariadb-adapter)
 - [Adapter Comparison](#adapter-comparison)
-- [Switching Adapters](#switching-adapters)
 - [Configuration Options](#configuration-options)
 - [Testing Recommendations](#testing-recommendations)
 - [Performance Considerations](#performance-considerations)
@@ -70,7 +69,16 @@ import (
     _ "github.com/lib/pq"
 )
 
+// Basic configuration (recommended for most use cases)
 store := postgres.NewStore(postgres.DefaultStoreConfig())
+
+// Advanced configuration with options
+config := postgres.NewStoreConfig(
+    postgres.WithLogger(myLogger),
+    postgres.WithEventsTable("custom_events"),
+    postgres.WithCheckpointsTable("custom_checkpoints"),
+)
+store := postgres.NewStore(config)
 
 // Use with *sql.DB or *sql.Tx
 db, _ := sql.Open("postgres", connString)
@@ -80,6 +88,18 @@ tx.Commit()
 
 // Generate migrations
 err := migrations.GeneratePostgres(&config)
+```
+
+### Projection Processing
+
+```go
+// Create processor for running projections
+store := postgres.NewStore(postgres.DefaultStoreConfig())
+config := projection.DefaultProcessorConfig()
+processor := postgres.NewProcessor(db, store, &config)
+
+// Run projection
+err := processor.Run(ctx, myProjection)
 ```
 
 ---
@@ -143,8 +163,15 @@ import (
     _ "modernc.org/sqlite"
 )
 
-// Create store
+// Basic configuration
 store := sqlite.NewStore(sqlite.DefaultStoreConfig())
+
+// Advanced configuration with options
+config := sqlite.NewStoreConfig(
+    sqlite.WithLogger(myLogger),
+    sqlite.WithEventsTable("custom_events"),
+)
+store := sqlite.NewStore(config)
 
 // Use with file-based database
 db, _ := sql.Open("sqlite", "events.db")
@@ -231,8 +258,15 @@ import (
     _ "github.com/go-sql-driver/mysql"
 )
 
-// Create store
+// Basic configuration
 store := mysql.NewStore(mysql.DefaultStoreConfig())
+
+// Advanced configuration with options
+config := mysql.NewStoreConfig(
+    mysql.WithLogger(myLogger),
+    mysql.WithEventsTable("custom_events"),
+)
+store := mysql.NewStore(config)
 
 // Use with connection string
 dsn := "user:password@tcp(localhost:3306)/dbname?parseTime=true"
@@ -277,29 +311,6 @@ err := migrations.GenerateMySQL(&config)
 | **HA Support** | Excellent | Manual | Excellent |
 | **Best For** | Production | Testing/Embedded | Production |
 | **License** | PostgreSQL | Public Domain | GPL/MIT |
-
-## Switching Adapters
-
-Switching between adapters requires only changing the import and constructor. All other code remains identical:
-
-```go
-// PostgreSQL
-import "github.com/getpup/pupsourcing/es/adapters/postgres"
-store := postgres.NewStore(postgres.DefaultStoreConfig())
-
-// SQLite  
-import "github.com/getpup/pupsourcing/es/adapters/sqlite"
-store := sqlite.NewStore(sqlite.DefaultStoreConfig())
-
-// MySQL
-import "github.com/getpup/pupsourcing/es/adapters/mysql"
-store := mysql.NewStore(mysql.DefaultStoreConfig())
-
-// All adapters support the same operations
-result, err := store.Append(ctx, tx, es.NoStream(), events)
-events, err := store.ReadEvents(ctx, tx, fromPosition, limit)
-stream, err := store.ReadAggregateStream(ctx, tx, aggregateType, aggregateID, nil, nil)
-```
 
 ## Configuration Options
 

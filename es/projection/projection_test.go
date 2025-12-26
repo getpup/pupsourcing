@@ -206,7 +206,7 @@ func TestDefaultProcessorConfig(t *testing.T) {
 	if config.PartitionStrategy == nil {
 		t.Error("Expected PartitionStrategy to be non-nil")
 	}
-	
+
 	// Verify poll interval is set to prevent CPU spinning
 	expectedPollInterval := 100 * time.Millisecond
 	if config.PollInterval != expectedPollInterval {
@@ -217,7 +217,6 @@ func TestDefaultProcessorConfig(t *testing.T) {
 func TestProcessorConfig_CustomPollInterval(t *testing.T) {
 	// Users should be able to customize the poll interval
 	config := ProcessorConfig{
-		BatchSize:    50,
 		PollInterval: 500 * time.Millisecond,
 	}
 
@@ -227,7 +226,6 @@ func TestProcessorConfig_CustomPollInterval(t *testing.T) {
 
 	// Zero poll interval should be allowed (for those who want busy polling)
 	config2 := ProcessorConfig{
-		BatchSize:    50,
 		PollInterval: 0,
 	}
 

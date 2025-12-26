@@ -4,6 +4,7 @@ package projection
 import (
 	"context"
 	"hash/fnv"
+	"time"
 
 	"github.com/getpup/pupsourcing/es"
 )
@@ -155,6 +156,12 @@ type ProcessorConfig struct {
 
 	// TotalPartitions is the total number of processor instances
 	TotalPartitions int
+
+	// PollInterval is the duration to wait when no events are available.
+	// This prevents tight polling loops that consume excessive CPU.
+	// A value of 0 means no delay (busy polling - not recommended).
+	// Default is 100ms, which provides a good balance between latency and CPU usage.
+	PollInterval time.Duration
 }
 
 // DefaultProcessorConfig returns the default configuration.
@@ -164,7 +171,8 @@ func DefaultProcessorConfig() ProcessorConfig {
 		PartitionKey:      0,
 		TotalPartitions:   1,
 		PartitionStrategy: HashPartitionStrategy{},
-		Logger:            nil, // No logging by default
+		Logger:            nil,                    // No logging by default
+		PollInterval:      100 * time.Millisecond, // Prevent CPU spinning
 	}
 }
 

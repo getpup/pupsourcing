@@ -12,7 +12,7 @@ const (
 	// expectedVersionAny indicates no version check should be performed
 	expectedVersionAny = -1
 	// expectedVersionNoStream indicates the aggregate must not exist
-	expectedVersionNoStream = 0
+	expectedVersionNoStream = -2
 )
 
 // Any returns an ExpectedVersion that skips version validation.
@@ -30,10 +30,10 @@ func NoStream() ExpectedVersion {
 
 // Exact returns an ExpectedVersion that enforces the aggregate must be at exactly the specified version.
 // Use this for normal command handling with optimistic concurrency control.
-// The version must be greater than 0.
+// The version must be non-negative (>= 0).
 func Exact(version int64) ExpectedVersion {
-	if version <= 0 {
-		panic(fmt.Sprintf("exact version must be greater than 0, got %d", version))
+	if version < 0 {
+		panic(fmt.Sprintf("exact version must be non-negative, got %d", version))
 	}
 	return ExpectedVersion{value: version}
 }
@@ -50,13 +50,13 @@ func (ev ExpectedVersion) IsNoStream() bool {
 
 // IsExact returns true if this is an "Exact" expected version (aggregate must be at specific version).
 func (ev ExpectedVersion) IsExact() bool {
-	return ev.value > 0
+	return ev.value >= 0
 }
 
 // Value returns the exact version number if this is an Exact expected version.
 // Returns 0 for Any and NoStream.
 func (ev ExpectedVersion) Value() int64 {
-	if ev.value > 0 {
+	if ev.value >= 0 {
 		return ev.value
 	}
 	return 0

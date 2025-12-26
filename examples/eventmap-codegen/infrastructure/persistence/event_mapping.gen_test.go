@@ -93,6 +93,7 @@ func TestEventTypeOf(t *testing.T) {
 
 // TestToESEvents tests the ToESEvents function with generics.
 func TestToESEvents(t *testing.T) {
+	boundedContext := "TestContext"
 	aggregateType := "TestAggregate"
 	aggregateID := uuid.New().String()
 
@@ -102,7 +103,7 @@ func TestToESEvents(t *testing.T) {
 	// Test with slice of specific type (not []any)
 	events := []v1.UserDeleted{domainEvent}
 	
-	esEvents, err := ToESEvents(aggregateType, aggregateID, events)
+	esEvents, err := ToESEvents(boundedContext, aggregateType, aggregateID, events)
 	if err != nil {
 		t.Fatalf("ToESEvents() failed: %v", err)
 	}
@@ -114,6 +115,9 @@ func TestToESEvents(t *testing.T) {
 	esEvent := esEvents[0]
 
 	// Verify event properties
+	if esEvent.BoundedContext != boundedContext {
+		t.Errorf("BoundedContext = %s, want %s", esEvent.BoundedContext, boundedContext)
+	}
 	if esEvent.AggregateType != aggregateType {
 		t.Errorf("AggregateType = %s, want %s", esEvent.AggregateType, aggregateType)
 	}
@@ -169,6 +173,7 @@ func TestFromESEvents(t *testing.T) {
 
 // TestOptions tests the Options pattern.
 func TestOptions(t *testing.T) {
+	boundedContext := "TestContext"
 	aggregateType := "TestAggregate"
 	aggregateID := uuid.New().String()
 
@@ -176,6 +181,7 @@ func TestOptions(t *testing.T) {
 	
 	// Use options
 	esEvents, err := ToESEvents(
+		boundedContext,
 		aggregateType,
 		aggregateID,
 		[]v1.UserDeleted{domainEvent},
@@ -211,13 +217,14 @@ func TestOptions(t *testing.T) {
 
 // TestTypeHelpers tests type-specific helper functions.
 func TestTypeHelpers(t *testing.T) {
+	boundedContext := "TestContext"
 	aggregateType := "TestAggregate"
 	aggregateID := uuid.New().String()
 
 	domainEvent := v1.UserDeleted{}
 
 	// Test To helper
-	esEvent, err := ToUserDeletedV1(aggregateType, aggregateID, domainEvent)
+	esEvent, err := ToUserDeletedV1(boundedContext, aggregateType, aggregateID, domainEvent)
 	if err != nil {
 		t.Fatalf("ToUserDeletedV1() failed: %v", err)
 	}
@@ -232,6 +239,7 @@ func TestTypeHelpers(t *testing.T) {
 	// Convert to persisted event
 	persistedEvent := es.PersistedEvent{
 		CreatedAt:        esEvent.CreatedAt,
+		BoundedContext:   esEvent.BoundedContext,
 		AggregateType:    esEvent.AggregateType,
 		EventType:        esEvent.EventType,
 		AggregateID:      esEvent.AggregateID,

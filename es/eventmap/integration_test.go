@@ -143,7 +143,7 @@ func TestRoundTripV1(t *testing.T) {
 	}
 
 	// Convert to es.Event
-	esEvents, err := ToESEvents("Order", "order-123", []any{domainEvent})
+	esEvents, err := ToESEvents("Orders", "Order", "order-123", []any{domainEvent})
 	if err != nil {
 		t.Fatalf("ToESEvents failed: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestRoundTripV2(t *testing.T) {
 	}
 
 	// Convert to es.Event
-	esEvents, err := ToESEvents("Order", "order-789", []any{domainEvent})
+	esEvents, err := ToESEvents("Orders", "Order", "order-789", []any{domainEvent})
 	if err != nil {
 		t.Fatalf("ToESEvents failed: %v", err)
 	}
@@ -282,7 +282,7 @@ func TestIntegrationTypeHelpers(t *testing.T) {
 	}
 
 	// Use type-safe conversion
-	esEvent, err := ToOrderCreatedV1("Order", "order-999", domainEvent)
+	esEvent, err := ToOrderCreatedV1("Orders", "Order", "order-999", domainEvent)
 	if err != nil {
 		t.Fatalf("ToOrderCreatedV1 failed: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestIntegrationOptions(t *testing.T) {
 	}
 
 	// Use options to set metadata
-	esEvents, err := ToESEvents("Order", "order-111", []any{domainEvent},
+	esEvents, err := ToESEvents("Orders", "Order", "order-111", []any{domainEvent},
 		WithCausationID("cmd-123"),
 		WithCorrelationID("corr-456"),
 		WithTraceID("trace-789"),
@@ -382,7 +382,7 @@ func TestUnknownEventVersion(t *testing.T) {
 		Amount:     99.99,
 	}
 
-	esEvents, _ := ToESEvents("Order", "order-123", []any{domainEvent})
+	esEvents, _ := ToESEvents("Orders", "Order", "order-123", []any{domainEvent})
 	esEvent := esEvents[0]
 
 	persistedEvent := es.PersistedEvent{

@@ -29,7 +29,6 @@ jobs:
         run: |
           set -euxo pipefail
           go install golang.org/x/tools/cmd/goimports@latest
-          goimports --help >/dev/null
 
       - name: Install golangci-lint
         run: |

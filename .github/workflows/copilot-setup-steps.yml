@@ -1,0 +1,71 @@
+name: "Copilot Setup Steps"
+
+# Automatically run the setup steps when they are changed to allow for easy validation, and
+# allow manual testing through the repository's "Actions" tab
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+
+    # Set the permissions to the lowest permissions possible needed for your steps.
+    # Copilot will be given its own token for its operations.
+    permissions:
+      # If you want to clone the repository as part of your setup steps, for example to install dependencies, you'll need the `contents: read` permission. If you don't clone the repository in your setup steps, Copilot will do this for you automatically after the steps complete.
+      contents: read
+
+    # You can define any steps you want, and they will run before the agent starts.
+    # If you do not check out your code, Copilot will do this for you.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.24.11
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.11'
+
+      - name: Install goimports
+        run: |
+          set -euxo pipefail
+          go install golang.org/x/tools/cmd/goimports@latest
+          goimports --help >/dev/null
+
+      - name: Install golangci-lint
+        run: |
+          set -euxo pipefail
+          GOLANGCI_LINT_VERSION="v1.61.0"
+          GOLANGCI_LINT_ARCHIVE="/tmp/golangci-lint-${GOLANGCI_LINT_VERSION#v}-linux-amd64.tar.gz"
+          curl -sSfL "https://github.com/golangci/golangci-lint/releases/download/${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION#v}-linux-amd64.tar.gz" -o "${GOLANGCI_LINT_ARCHIVE}"
+          tar -C /tmp -xzf "${GOLANGCI_LINT_ARCHIVE}"
+          sudo mv "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION#v}-linux-amd64/golangci-lint" /usr/local/bin/
+          rm -rf "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION#v}-linux-amd64" "${GOLANGCI_LINT_ARCHIVE}"
+          golangci-lint version
+
+      - name: Install Docker Engine
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl gnupg
+          sudo install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+          sudo chmod a+r /etc/apt/keyrings/docker.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+          sudo usermod -aG docker "$USER"
+          if command -v systemctl >/dev/null 2>&1; then
+            sudo systemctl enable docker --now
+          elif command -v service >/dev/null 2>&1; then
+            sudo service docker start
+          fi
+          docker --version
+          docker compose version

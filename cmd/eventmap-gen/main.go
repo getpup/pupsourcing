@@ -28,7 +28,7 @@
 //
 // The tool generates:
 //   - EventTypeOf(e any) - Resolves event type string from domain event
-//   - ToESEvents(aggregateType, aggregateID, events, opts...) - Converts domain events to es.Event
+//   - ToESEvents(boundedContext, aggregateType, aggregateID, events, opts...) - Converts domain events to es.Event
 //   - FromESEvents[T](events) - Converts es.PersistedEvent to domain events (using generics)
 //   - Type-safe helpers per event (ToUserRegisteredV1, FromUserRegisteredV1, etc.)
 //

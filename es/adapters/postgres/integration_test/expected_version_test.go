@@ -204,7 +204,7 @@ func TestExpectedVersion_Exact_Zero(t *testing.T) {
 		CreatedAt:     time.Now(),
 	}
 
-	// Append with Exact(0) should succeed for new aggregate (version 0 means "no events yet")
+	// Append with Exact(0) should succeed when aggregate is at version 0 (new aggregate)
 	tx1, _ := db.BeginTx(ctx, nil)
 	result, err := pgStore.Append(ctx, tx1, es.Exact(0), []es.Event{event})
 	if err != nil {
@@ -219,7 +219,7 @@ func TestExpectedVersion_Exact_Zero(t *testing.T) {
 		t.Errorf("Expected version 1 after first append, got %d", result.ToVersion())
 	}
 
-	// Append with Exact(0) should now fail (aggregate exists)
+	// Append with Exact(0) should now fail (aggregate is at version 1, not 0)
 	event2 := event
 	event2.EventID = uuid.New()
 	event2.EventType = "TestEventUpdated"

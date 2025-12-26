@@ -66,3 +66,4 @@ with-logging
 *.test
 integration_test.test
 eventmap-codegen
+multiple-projections

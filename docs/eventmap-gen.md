@@ -129,6 +129,7 @@ func main() {
 
     // Convert to es.Event
     esEvents, err := generated.ToESEvents(
+        "Identity",                // bounded context
         "User",                    // aggregate type
         uuid.New().String(),       // aggregate ID
         []v1.UserRegistered{event},// domain events (type-safe!)
@@ -230,6 +231,7 @@ Returns the event type string for a domain event. The event type is the struct n
 
 ```go
 func ToESEvents[T any](
+    boundedContext string,
     aggregateType string,
     aggregateID string,
     events []T,
@@ -288,6 +290,7 @@ For each event version, generates:
 ```go
 // Convert specific event to ES
 func ToUserRegisteredV1(
+    boundedContext string,
     aggregateType string,
     aggregateID string,
     e v1.UserRegistered,
@@ -315,7 +318,7 @@ Use options to inject metadata:
 
 ```go
 esEvents, err := generated.ToESEvents(
-    "User", userID, []v1.UserRegistered{event},
+    "Identity", "User", userID, []v1.UserRegistered{event},
     generated.WithCausationID("command-123"),
     generated.WithCorrelationID("correlation-456"),
     generated.WithTraceID("trace-789"),
@@ -446,7 +449,7 @@ func (r *Repository) Save(ctx context.Context, u *user.User) error {
     domainEvents := u.GetUncommittedEvents()
     
     // Convert to ES events using generated code
-    esEvents, err := ToESEvents(u.AggregateType(), u.ID(), domainEvents)
+    esEvents, err := ToESEvents(u.BoundedContext(), u.AggregateType(), u.ID(), domainEvents)
     if err != nil {
         return err
     }
@@ -628,13 +631,13 @@ The generic `ToESEvents` function now supports type-safe slices:
 ```go
 // ✅ Best: Type-safe with generics (compile-time safety)
 events := []v1.UserRegistered{event1, event2}
-esEvents, err := generated.ToESEvents("User", userID, events)
+esEvents, err := generated.ToESEvents("Identity", "User", userID, events)
 
 // ✅ Good: Type-safe per-event helper
-esEvent, err := generated.ToUserRegisteredV1("User", userID, event)
+esEvent, err := generated.ToUserRegisteredV1("Identity", "User", userID, event)
 
 // ⚠️ OK but less safe: Using []any for mixed event types
-esEvents, err := generated.ToESEvents("User", userID, []any{event1, event2})
+esEvents, err := generated.ToESEvents("Identity", "User", userID, []any{event1, event2})
 ```
 
 Using type-safe slices with generics provides better compile-time safety while maintaining flexibility.

@@ -419,7 +419,7 @@ func (g *Generator) generateToESEvents() string {
 	sb.WriteString(`// ToESEvents converts domain events to es.Event instances.
 // Each domain event is marshaled to JSON and wrapped in an es.Event.
 // The generic type T allows for type-safe event slices instead of []any.
-func ToESEvents[T any](aggregateType string, aggregateID string, events []T, opts ...Option) ([]es.Event, error) {
+func ToESEvents[T any](boundedContext string, aggregateType string, aggregateID string, events []T, opts ...Option) ([]es.Event, error) {
 	options := &eventOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -446,6 +446,7 @@ func ToESEvents[T any](aggregateType string, aggregateID string, events []T, opt
 		version := getEventVersion(e)
 
 		event := es.Event{
+			BoundedContext: boundedContext,
 			AggregateType: aggregateType,
 			AggregateID:   aggregateID,
 			EventType:     eventType,
@@ -561,7 +562,7 @@ func (g *Generator) generateTypeHelpers() string {
 	for _, event := range g.events {
 		// ToXXXVN function
 		sb.WriteString(fmt.Sprintf(`// To%sV%d converts a domain event to an es.Event.
-func To%sV%d(aggregateType string, aggregateID string, e %s.%s, opts ...Option) (es.Event, error) {
+func To%sV%d(boundedContext string, aggregateType string, aggregateID string, e %s.%s, opts ...Option) (es.Event, error) {
 	options := &eventOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -578,6 +579,7 @@ func To%sV%d(aggregateType string, aggregateID string, e %s.%s, opts ...Option) 
 	}
 
 	return es.Event{
+		BoundedContext: boundedContext,
 		AggregateType: aggregateType,
 		AggregateID:   aggregateID,
 		EventType:     %q,
@@ -782,6 +784,7 @@ func (g *Generator) generateTestToESEvents() string {
 
 	sb.WriteString(fmt.Sprintf(`// TestToESEvents tests the ToESEvents function with generics.
 func TestToESEvents(t *testing.T) {
+	boundedContext := "TestContext"
 	aggregateType := "TestAggregate"
 	aggregateID := uuid.New().String()
 
@@ -791,7 +794,7 @@ func TestToESEvents(t *testing.T) {
 	// Test with slice of specific type (not []any)
 	events := []%s.%s{domainEvent}
 	
-	esEvents, err := ToESEvents(aggregateType, aggregateID, events)
+	esEvents, err := ToESEvents(boundedContext, aggregateType, aggregateID, events)
 	if err != nil {
 		t.Fatalf("ToESEvents() failed: %%v", err)
 	}
@@ -803,6 +806,9 @@ func TestToESEvents(t *testing.T) {
 	esEvent := esEvents[0]
 
 	// Verify event properties
+	if esEvent.BoundedContext != boundedContext {
+		t.Errorf("BoundedContext = %%s, want %%s", esEvent.BoundedContext, boundedContext)
+	}
 	if esEvent.AggregateType != aggregateType {
 		t.Errorf("AggregateType = %%s, want %%s", esEvent.AggregateType, aggregateType)
 	}
@@ -886,6 +892,7 @@ func (g *Generator) generateTestOptions() string {
 
 	sb.WriteString(fmt.Sprintf(`// TestOptions tests the Options pattern.
 func TestOptions(t *testing.T) {
+	boundedContext := "TestContext"
 	aggregateType := "TestAggregate"
 	aggregateID := uuid.New().String()
 
@@ -893,6 +900,7 @@ func TestOptions(t *testing.T) {
 	
 	// Use options
 	esEvents, err := ToESEvents(
+		boundedContext,
 		aggregateType,
 		aggregateID,
 		[]%s.%s{domainEvent},
@@ -941,13 +949,14 @@ func (g *Generator) generateTestTypeHelpers() string {
 
 	sb.WriteString(fmt.Sprintf(`// TestTypeHelpers tests type-specific helper functions.
 func TestTypeHelpers(t *testing.T) {
+	boundedContext := "TestContext"
 	aggregateType := "TestAggregate"
 	aggregateID := uuid.New().String()
 
 	domainEvent := %s.%s{}
 
 	// Test To helper
-	esEvent, err := To%sV%d(aggregateType, aggregateID, domainEvent)
+	esEvent, err := To%sV%d(boundedContext, aggregateType, aggregateID, domainEvent)
 	if err != nil {
 		t.Fatalf("To%sV%d() failed: %%v", err)
 	}
@@ -962,6 +971,7 @@ func TestTypeHelpers(t *testing.T) {
 	// Convert to persisted event
 	persistedEvent := es.PersistedEvent{
 		CreatedAt:        esEvent.CreatedAt,
+		BoundedContext:   esEvent.BoundedContext,
 		AggregateType:    esEvent.AggregateType,
 		EventType:        esEvent.EventType,
 		AggregateID:      esEvent.AggregateID,

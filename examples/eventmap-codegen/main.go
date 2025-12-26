@@ -44,6 +44,7 @@ func main() {
 	userID := uuid.New().String()
 
 	esEvents, err := persistence.ToESEvents(
+		"Identity",
 		"User",
 		userID,
 		v1Events,
@@ -78,6 +79,7 @@ func main() {
 	}
 
 	esEvent, err := persistence.ToUserRegisteredV2(
+		"Identity",
 		"User",
 		uuid.New().String(),
 		v2Event,
@@ -183,6 +185,7 @@ func main() {
 
 	// Use type-safe helper
 	specificESEvent, err := persistence.ToUserRegisteredV1(
+		"Identity",
 		"User",
 		uuid.New().String(),
 		specificEvent,

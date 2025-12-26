@@ -72,7 +72,7 @@ func EventTypeOf(e any) (string, error) {
 // ToESEvents converts domain events to es.Event instances.
 // Each domain event is marshaled to JSON and wrapped in an es.Event.
 // The generic type T allows for type-safe event slices instead of []any.
-func ToESEvents[T any](aggregateType string, aggregateID string, events []T, opts ...Option) ([]es.Event, error) {
+func ToESEvents[T any](boundedContext string, aggregateType string, aggregateID string, events []T, opts ...Option) ([]es.Event, error) {
 	options := &eventOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -99,6 +99,7 @@ func ToESEvents[T any](aggregateType string, aggregateID string, events []T, opt
 		version := getEventVersion(e)
 
 		event := es.Event{
+			BoundedContext: boundedContext,
 			AggregateType: aggregateType,
 			AggregateID:   aggregateID,
 			EventType:     eventType,
@@ -207,7 +208,7 @@ func FromESEvent(pe es.PersistedEvent) (any, error) {
 }
 
 // ToUserDeletedV1 converts a domain event to an es.Event.
-func ToUserDeletedV1(aggregateType string, aggregateID string, e v1.UserDeleted, opts ...Option) (es.Event, error) {
+func ToUserDeletedV1(boundedContext string, aggregateType string, aggregateID string, e v1.UserDeleted, opts ...Option) (es.Event, error) {
 	options := &eventOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -224,6 +225,7 @@ func ToUserDeletedV1(aggregateType string, aggregateID string, e v1.UserDeleted,
 	}
 
 	return es.Event{
+		BoundedContext: boundedContext,
 		AggregateType: aggregateType,
 		AggregateID:   aggregateID,
 		EventType:     "UserDeleted",
@@ -257,7 +259,7 @@ func FromUserDeletedV1(pe es.PersistedEvent) (v1.UserDeleted, error) {
 }
 
 // ToUserEmailChangedV1 converts a domain event to an es.Event.
-func ToUserEmailChangedV1(aggregateType string, aggregateID string, e v1.UserEmailChanged, opts ...Option) (es.Event, error) {
+func ToUserEmailChangedV1(boundedContext string, aggregateType string, aggregateID string, e v1.UserEmailChanged, opts ...Option) (es.Event, error) {
 	options := &eventOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -274,6 +276,7 @@ func ToUserEmailChangedV1(aggregateType string, aggregateID string, e v1.UserEma
 	}
 
 	return es.Event{
+		BoundedContext: boundedContext,
 		AggregateType: aggregateType,
 		AggregateID:   aggregateID,
 		EventType:     "UserEmailChanged",
@@ -307,7 +310,7 @@ func FromUserEmailChangedV1(pe es.PersistedEvent) (v1.UserEmailChanged, error) {
 }
 
 // ToUserRegisteredV1 converts a domain event to an es.Event.
-func ToUserRegisteredV1(aggregateType string, aggregateID string, e v1.UserRegistered, opts ...Option) (es.Event, error) {
+func ToUserRegisteredV1(boundedContext string, aggregateType string, aggregateID string, e v1.UserRegistered, opts ...Option) (es.Event, error) {
 	options := &eventOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -324,6 +327,7 @@ func ToUserRegisteredV1(aggregateType string, aggregateID string, e v1.UserRegis
 	}
 
 	return es.Event{
+		BoundedContext: boundedContext,
 		AggregateType: aggregateType,
 		AggregateID:   aggregateID,
 		EventType:     "UserRegistered",
@@ -357,7 +361,7 @@ func FromUserRegisteredV1(pe es.PersistedEvent) (v1.UserRegistered, error) {
 }
 
 // ToUserRegisteredV2 converts a domain event to an es.Event.
-func ToUserRegisteredV2(aggregateType string, aggregateID string, e v2.UserRegistered, opts ...Option) (es.Event, error) {
+func ToUserRegisteredV2(boundedContext string, aggregateType string, aggregateID string, e v2.UserRegistered, opts ...Option) (es.Event, error) {
 	options := &eventOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -374,6 +378,7 @@ func ToUserRegisteredV2(aggregateType string, aggregateID string, e v2.UserRegis
 	}
 
 	return es.Event{
+		BoundedContext: boundedContext,
 		AggregateType: aggregateType,
 		AggregateID:   aggregateID,
 		EventType:     "UserRegistered",

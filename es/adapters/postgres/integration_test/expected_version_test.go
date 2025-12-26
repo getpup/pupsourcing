@@ -180,6 +180,58 @@ func TestExpectedVersion_Exact_NonExistent(t *testing.T) {
 	tx.Rollback()
 }
 
+// TestExpectedVersion_Exact_Zero tests that Exact(0) can be used to create new aggregates
+func TestExpectedVersion_Exact_Zero(t *testing.T) {
+	db := getTestDB(t)
+	defer db.Close()
+
+	setupTestTables(t, db)
+
+	ctx := context.Background()
+	pgStore := postgres.NewStore(postgres.DefaultStoreConfig())
+
+	aggregateID := uuid.New().String()
+
+	event := es.Event{
+		BoundedContext: "TestContext",
+		AggregateType:  "TestAggregate",
+		AggregateID:   aggregateID,
+		EventID:       uuid.New(),
+		EventType:     "TestEventCreated",
+		EventVersion:  1,
+		Payload:       []byte(`{}`),
+		Metadata:      []byte(`{}`),
+		CreatedAt:     time.Now(),
+	}
+
+	// Append with Exact(0) should succeed for new aggregate (version 0 means "no events yet")
+	tx1, _ := db.BeginTx(ctx, nil)
+	result, err := pgStore.Append(ctx, tx1, es.Exact(0), []es.Event{event})
+	if err != nil {
+		t.Fatalf("First append with Exact(0) should succeed: %v", err)
+	}
+	if err := tx1.Commit(); err != nil {
+		t.Fatalf("Failed to commit: %v", err)
+	}
+
+	// Verify aggregate now has version 1
+	if result.ToVersion() != 1 {
+		t.Errorf("Expected version 1 after first append, got %d", result.ToVersion())
+	}
+
+	// Append with Exact(0) should now fail (aggregate exists)
+	event2 := event
+	event2.EventID = uuid.New()
+	event2.EventType = "TestEventUpdated"
+
+	tx2, _ := db.BeginTx(ctx, nil)
+	_, err = pgStore.Append(ctx, tx2, es.Exact(0), []es.Event{event2})
+	if err != store.ErrOptimisticConcurrency {
+		t.Fatalf("Second append with Exact(0) should fail with ErrOptimisticConcurrency, got: %v", err)
+	}
+	tx2.Rollback()
+}
+
 // TestExpectedVersion_Any tests that Any() allows appends regardless of version
 func TestExpectedVersion_Any(t *testing.T) {
 	db := getTestDB(t)

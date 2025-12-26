@@ -50,6 +50,7 @@ func TestExpectedVersion_Exact(t *testing.T) {
 		name    string
 		version int64
 	}{
+		{"version 0", 0},
 		{"version 1", 1},
 		{"version 5", 5},
 		{"version 100", 100},
@@ -84,7 +85,6 @@ func TestExpectedVersion_Exact_Panic(t *testing.T) {
 		name    string
 		version int64
 	}{
-		{"zero", 0},
 		{"negative", -1},
 		{"large negative", -100},
 	}

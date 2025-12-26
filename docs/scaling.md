@@ -444,6 +444,30 @@ config.BatchSize = 10
 - Slow projections: 10-50
 - Default (100) works for most cases
 
+### Poll Interval
+
+Control how frequently the processor checks for new events when caught up:
+
+```go
+config := projection.DefaultProcessorConfig()
+config.PollInterval = 100 * time.Millisecond  // Default
+
+// Lower latency (more CPU usage when idle)
+config.PollInterval = 10 * time.Millisecond
+
+// Higher latency (less CPU usage when idle)
+config.PollInterval = 500 * time.Millisecond
+
+// Busy polling (not recommended - high CPU usage)
+config.PollInterval = 0
+```
+
+**Guidelines:**
+- Default (100ms) balances latency and CPU usage
+- Lower values (10-50ms) for near-real-time requirements
+- Higher values (200-500ms) for batch processing or to reduce CPU load
+- Never use 0 (busy polling) in production - it causes excessive CPU usage
+
 ### Connection Pooling
 
 Configure database connection pool:

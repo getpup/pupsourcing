@@ -595,6 +595,7 @@ type ProcessorConfig struct {
     BatchSize         int                // Events per batch
     PartitionKey      int                // This worker's partition (0-indexed)
     TotalPartitions   int                // Total number of partitions
+    PollInterval      time.Duration      // Wait time when no events (default: 100ms)
 }
 ```
 
@@ -613,10 +614,13 @@ func DefaultProcessorConfig() ProcessorConfig {
         PartitionKey:      0,
         TotalPartitions:   1,
         PartitionStrategy: HashPartitionStrategy{},
-        Logger:            nil,  // No logging by default
+        Logger:            nil,                     // No logging by default
+        PollInterval:      100 * time.Millisecond,  // Prevent CPU spinning
     }
 }
 ```
+
+**PollInterval** controls how long the processor waits when no events are available before checking again. The default of 100ms provides a good balance between latency and CPU usage. Set to 0 for busy polling (not recommended in production due to high CPU usage).
 
 ### projection.PartitionStrategy
 

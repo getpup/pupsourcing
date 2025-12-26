@@ -180,14 +180,6 @@ func (p *Processor) processBatch(ctx context.Context, proj projection.Projection
 		return fmt.Errorf("failed to get checkpoint: %w", err)
 	}
 
-	if p.config.Logger != nil {
-		p.config.Logger.Debug(ctx, "processing batch",
-			"projection", proj.Name(),
-			"checkpoint_name", checkpointName,
-			"checkpoint", checkpoint,
-			"batch_size", p.config.BatchSize)
-	}
-
 	// Read events
 	events, err := p.store.ReadEvents(ctx, tx, checkpoint, p.config.BatchSize)
 	if err != nil {
@@ -248,11 +240,19 @@ func (p *Processor) processBatch(ctx context.Context, proj projection.Projection
 	}
 
 	if p.config.Logger != nil {
-		p.config.Logger.Debug(ctx, "batch processed",
-			"projection", proj.Name(),
-			"processed", processedCount,
-			"skipped", skippedCount,
-			"checkpoint", lastPosition)
+		// Log at Info level when events are actually processed, Debug for skipped-only batches
+		if processedCount > 0 {
+			p.config.Logger.Info(ctx, "events processed",
+				"projection", proj.Name(),
+				"processed", processedCount,
+				"skipped", skippedCount,
+				"checkpoint", lastPosition)
+		} else {
+			p.config.Logger.Debug(ctx, "batch processed",
+				"projection", proj.Name(),
+				"skipped", skippedCount,
+				"checkpoint", lastPosition)
+		}
 	}
 
 	return nil

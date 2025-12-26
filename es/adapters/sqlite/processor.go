@@ -250,6 +250,7 @@ func (p *Processor) processBatch(ctx context.Context, proj projection.Projection
 		} else {
 			p.config.Logger.Debug(ctx, "batch processed",
 				"projection", proj.Name(),
+				"processed", processedCount,
 				"skipped", skippedCount,
 				"checkpoint", lastPosition)
 		}

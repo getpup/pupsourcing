@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/getpup/pupsourcing/es"
 	"github.com/getpup/pupsourcing/es/projection"
@@ -75,7 +76,15 @@ func (p *Processor) Run(ctx context.Context, proj projection.Projection) error {
 		err := p.processBatch(ctx, proj, aggregateTypeFilter, boundedContextFilter)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) || err.Error() == "no events in batch" {
-				// No events available, continue polling
+				// No events available - sleep to prevent CPU spinning
+				if p.config.PollInterval > 0 {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(p.config.PollInterval):
+						// Continue to next batch
+					}
+				}
 				continue
 			}
 			if p.config.Logger != nil {

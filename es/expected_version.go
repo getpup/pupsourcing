@@ -30,10 +30,10 @@ func NoStream() ExpectedVersion {
 
 // Exact returns an ExpectedVersion that enforces the aggregate must be at exactly the specified version.
 // Use this for normal command handling with optimistic concurrency control.
-// The version must be greater than 0.
+// The version must be non-negative (>= 0). Note that Exact(0) is equivalent to NoStream().
 func Exact(version int64) ExpectedVersion {
-	if version <= 0 {
-		panic(fmt.Sprintf("exact version must be greater than 0, got %d", version))
+	if version < 0 {
+		panic(fmt.Sprintf("exact version must be non-negative, got %d", version))
 	}
 	return ExpectedVersion{value: version}
 }

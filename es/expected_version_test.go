@@ -84,7 +84,6 @@ func TestExpectedVersion_Exact_Panic(t *testing.T) {
 		name    string
 		version int64
 	}{
-		{"zero", 0},
 		{"negative", -1},
 		{"large negative", -100},
 	}
@@ -98,5 +97,32 @@ func TestExpectedVersion_Exact_Panic(t *testing.T) {
 			}()
 			Exact(tt.version)
 		})
+	}
+}
+
+func TestExpectedVersion_Exact_Zero(t *testing.T) {
+	// Exact(0) should be equivalent to NoStream()
+	ev := Exact(0)
+
+	if ev.IsAny() {
+		t.Error("Expected IsAny() to be false")
+	}
+	if !ev.IsNoStream() {
+		t.Error("Expected IsNoStream() to be true for Exact(0)")
+	}
+	if ev.IsExact() {
+		t.Error("Expected IsExact() to be false for Exact(0)")
+	}
+	if ev.Value() != 0 {
+		t.Errorf("Expected Value() to be 0, got %d", ev.Value())
+	}
+	if ev.String() != "NoStream" {
+		t.Errorf("Expected String() to be 'NoStream', got '%s'", ev.String())
+	}
+
+	// Verify Exact(0) and NoStream() are truly equivalent
+	ns := NoStream()
+	if ev != ns {
+		t.Error("Expected Exact(0) to be equal to NoStream()")
 	}
 }

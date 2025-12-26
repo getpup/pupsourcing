@@ -3,6 +3,7 @@ package projection
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -183,5 +184,54 @@ func TestHashPartitionStrategy_Distribution(t *testing.T) {
 			t.Errorf("Partition %d has %d assignments, expected %d ± %d",
 				partition, count, expectedCount, tolerance)
 		}
+	}
+}
+
+func TestDefaultProcessorConfig(t *testing.T) {
+	config := DefaultProcessorConfig()
+
+	// Verify default values
+	if config.BatchSize != 100 {
+		t.Errorf("Expected BatchSize 100, got %d", config.BatchSize)
+	}
+	if config.PartitionKey != 0 {
+		t.Errorf("Expected PartitionKey 0, got %d", config.PartitionKey)
+	}
+	if config.TotalPartitions != 1 {
+		t.Errorf("Expected TotalPartitions 1, got %d", config.TotalPartitions)
+	}
+	if config.Logger != nil {
+		t.Error("Expected Logger to be nil by default")
+	}
+	if config.PartitionStrategy == nil {
+		t.Error("Expected PartitionStrategy to be non-nil")
+	}
+	
+	// Verify poll interval is set to prevent CPU spinning
+	expectedPollInterval := 100 * time.Millisecond
+	if config.PollInterval != expectedPollInterval {
+		t.Errorf("Expected PollInterval %v, got %v", expectedPollInterval, config.PollInterval)
+	}
+}
+
+func TestProcessorConfig_CustomPollInterval(t *testing.T) {
+	// Users should be able to customize the poll interval
+	config := ProcessorConfig{
+		BatchSize:    50,
+		PollInterval: 500 * time.Millisecond,
+	}
+
+	if config.PollInterval != 500*time.Millisecond {
+		t.Errorf("Expected custom PollInterval 500ms, got %v", config.PollInterval)
+	}
+
+	// Zero poll interval should be allowed (for those who want busy polling)
+	config2 := ProcessorConfig{
+		BatchSize:    50,
+		PollInterval: 0,
+	}
+
+	if config2.PollInterval != 0 {
+		t.Errorf("Expected zero PollInterval, got %v", config2.PollInterval)
 	}
 }

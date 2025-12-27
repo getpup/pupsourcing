@@ -67,3 +67,4 @@ with-logging
 integration_test.test
 eventmap-codegen
 multiple-projections
+migrate-gen

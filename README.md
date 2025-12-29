@@ -59,7 +59,7 @@ go run github.com/getpup/pupsourcing/cmd/eventmap-gen \
   -output internal/infrastructure/generated
 ```
 
-See [Event Mapping Documentation](./docs/eventmap-gen.md) for details.
+See [Event Mapping Documentation](https://pupsourcing.gopup.dev/eventmap-gen) for details.
 
 ### 3. Append Events
 
@@ -163,15 +163,15 @@ err := processor.Run(ctx, &UserReadModelProjection{})
 
 ## Documentation
 
-Comprehensive documentation is available in the [`docs/`](./docs) directory:
+Comprehensive documentation is available at **[https://pupsourcing.gopup.dev](https://pupsourcing.gopup.dev)**:
 
-- **[Getting Started](./docs/getting-started.md)** - Installation, setup, and first steps
-- **[Core Concepts](./docs/core-concepts.md)** - Understanding event sourcing principles
-- **[Database Adapters](./docs/adapters.md)** - Choosing the right database
-- **[Projections & Scaling](./docs/scaling.md)** - Horizontal scaling and production patterns
-- **[Event Mapping Code Generation](./docs/eventmap-gen.md)** - Type-safe domain event mapping
-- **[Observability](./docs/observability.md)** - Logging, tracing, and monitoring
-- **[API Reference](./docs/api-reference.md)** - Complete API documentation
+- **[Getting Started](https://pupsourcing.gopup.dev/getting-started)** - Installation, setup, and first steps
+- **[Core Concepts](https://pupsourcing.gopup.dev/core-concepts)** - Understanding event sourcing principles
+- **[Database Adapters](https://pupsourcing.gopup.dev/adapters)** - Choosing the right database
+- **[Projections & Scaling](https://pupsourcing.gopup.dev/scaling)** - Horizontal scaling and production patterns
+- **[Event Mapping Code Generation](https://pupsourcing.gopup.dev/eventmap-gen)** - Type-safe domain event mapping
+- **[Observability](https://pupsourcing.gopup.dev/observability)** - Logging, tracing, and monitoring
+- **[API Reference](https://pupsourcing.gopup.dev/api-reference)** - Complete API documentation
 
 ## Examples
 

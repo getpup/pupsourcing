@@ -289,7 +289,7 @@ docker run -d -p 5432:5432 \
 
 **New to event sourcing?**
 1. Start with [Single Worker](./single-worker/)
-2. Read [Core Concepts](../docs/core-concepts.md)
+2. Read [Core Concepts](https://pupsourcing.gopup.dev/core-concepts)
 3. Try [Stop and Resume](./stop-resume/)
 
 **Need to scale projections?**
@@ -299,8 +299,8 @@ docker run -d -p 5432:5432 \
 
 **Building a CQRS application?**
 1. Explore [Multiple Projections](./multiple-projections/)
-2. Read [Scaling Guide](../docs/scaling.md)
-3. See [Industry Alignment](../docs/industry-alignment.md)
+2. Read [Scaling Guide](https://pupsourcing.gopup.dev/scaling)
+3. See [Industry Alignment](https://pupsourcing.gopup.dev/industry-alignment)
 
 ## Key Concepts
 
@@ -411,10 +411,10 @@ SELECT * FROM projection_checkpoints;
 
 ## Next Steps
 
-- Read [Getting Started Guide](../docs/getting-started.md)
-- Study [Core Concepts](../docs/core-concepts.md)
-- Review [Scaling Guide](../docs/scaling.md)
-- Explore [API Reference](../docs/api-reference.md)
+- Read [Getting Started Guide](https://pupsourcing.gopup.dev/getting-started)
+- Study [Core Concepts](https://pupsourcing.gopup.dev/core-concepts)
+- Review [Scaling Guide](https://pupsourcing.gopup.dev/scaling)
+- Explore [API Reference](https://pupsourcing.gopup.dev/api-reference)
 
 ## Contributing
 

@@ -300,7 +300,6 @@ docker run -d -p 5432:5432 \
 **Building a CQRS application?**
 1. Explore [Multiple Projections](./multiple-projections/)
 2. Read [Scaling Guide](https://pupsourcing.gopup.dev/scaling)
-3. See [Industry Alignment](https://pupsourcing.gopup.dev/industry-alignment)
 
 ## Key Concepts
 

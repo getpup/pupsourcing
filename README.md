@@ -13,7 +13,7 @@ pupsourcing provides minimal, reliable infrastructure for event sourcing in Go a
 ## Key Features
 
 - **Clean Architecture** - Core interfaces are datastore-agnostic; no "infrastructure creep" into your domain model (no annotations, no framework-specific base classes)
-- **Multiple Database Adapters** - PostgreSQL, SQLite, and MySQL/MariaDB
+- **Multiple Database Adapters** - PostgreSQL, SQLite, MySQL/MariaDB, and CockroachDB (via PostgreSQL wire protocol)
 - **Bounded Context Support** - Events are scoped to bounded contexts for domain-driven design alignment
 - **Optimistic Concurrency** - Automatic conflict detection via database constraints
 - **Projection System** - Pull-based event processing with checkpoints, supporting both global and context-scoped projections
@@ -30,6 +30,9 @@ go get github.com/getpup/pupsourcing
 Choose your database driver:
 ```bash
 # PostgreSQL (recommended for production)
+go get github.com/lib/pq
+
+# CockroachDB (distributed SQL, uses PostgreSQL driver)
 go get github.com/lib/pq
 
 # SQLite (embedded, ideal for testing)
@@ -173,6 +176,17 @@ Comprehensive documentation is available at **[https://pupsourcing.gopup.dev](ht
 - **[Observability](https://pupsourcing.gopup.dev/observability)** - Logging, tracing, and monitoring
 - **[API Reference](https://pupsourcing.gopup.dev/api-reference)** - Complete API documentation
 
+### Database Adapter Support
+
+| Database | Status | Use Case | Notes |
+|----------|--------|----------|-------|
+| **PostgreSQL** | ✅ Production Ready | General purpose, single-region deployments | Recommended for most use cases |
+| **CockroachDB** | ✅ Production Ready | Distributed, multi-region, high availability | Uses PostgreSQL adapter - see [CockroachDB Research](./COCKROACHDB_RESEARCH.md) |
+| **SQLite** | ✅ Production Ready | Embedded, testing, edge deployments | Single file database |
+| **MySQL/MariaDB** | ✅ Production Ready | Legacy systems, existing MySQL infrastructure | Full feature parity |
+
+**CockroachDB**: Leverage PostgreSQL wire protocol compatibility for distributed event sourcing with automatic horizontal scaling and multi-region support. See the [CockroachDB example](./examples/cockroachdb-basic/) and [detailed research document](./COCKROACHDB_RESEARCH.md) for implementation guidance.
+
 ## Examples
 
 Complete runnable examples are available in the [`examples/`](./examples) directory:
@@ -181,6 +195,7 @@ Complete runnable examples are available in the [`examples/`](./examples) direct
 - **[Multiple Projections](./examples/multiple-projections/)** - Running different projections concurrently
 - **[Worker Pool](./examples/worker-pool/)** - Multiple workers in the same process
 - **[Partitioned](./examples/partitioned/)** - Horizontal scaling across processes
+- **[CockroachDB Basic](./examples/cockroachdb-basic/)** - Using CockroachDB for distributed event sourcing
 - **[With Logging](./examples/with-logging/)** - Observability and debugging
 
 See the [examples README](./examples/README.md) for more details.

@@ -16,7 +16,7 @@ CockroachDB is a distributed SQL database that implements the PostgreSQL wire pr
 ## Prerequisites
 
 - CockroachDB installed locally or via Docker
-- Go 1.23 or later
+- Go 1.24 or later
 
 ## Setup
 

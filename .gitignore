@@ -68,3 +68,5 @@ integration_test.test
 eventmap-codegen
 multiple-projections
 migrate-gen
+*.exe
+examples/*/[a-z]*-[a-z]*
